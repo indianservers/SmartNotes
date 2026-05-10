@@ -52,6 +52,8 @@ export function useNotes() {
       setNotes(notes)
       setNotebooks(notebooks)
       setTags(tags)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load notes')
     } finally {
       setLoading(false)
     }

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Plus, RefreshCw, Grid3X3, List, Filter,
   FileText, CheckSquare, Mic, Image, Paperclip,
-  Pin, Star, Archive, Trash2, Clock,
+  Pin, Star, Archive, Trash2, Clock, Calendar, Globe, PenTool,
 } from 'lucide-react'
 import { useNotesStore, useFilteredNotes } from '@/stores/notesStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -30,6 +30,15 @@ const SMART_VIEWS = [
   { key: 'archived', label: 'Archived', icon: Archive },
   { key: 'trash', label: 'Trash', icon: Trash2 },
   { key: 'recent', label: 'Recent', icon: Clock },
+]
+
+const QUICK_ACTIONS: Array<{ label: string; type: NoteType; icon: React.ElementType; description: string }> = [
+  { label: 'Write note', type: 'rich', icon: FileText, description: 'Rich text, tables, links' },
+  { label: 'Checklist', type: 'checklist', icon: CheckSquare, description: 'Tasks and lists' },
+  { label: 'Meeting', type: 'meeting', icon: Calendar, description: 'Agenda and action items' },
+  { label: 'Web clip', type: 'webclip', icon: Globe, description: 'Save links and pages' },
+  { label: 'Drawing', type: 'drawing', icon: PenTool, description: 'Sketch ideas' },
+  { label: 'File note', type: 'file', icon: Paperclip, description: 'Attach files and PDFs' },
 ]
 
 export default function DashboardPage() {
@@ -191,11 +200,24 @@ export default function DashboardPage() {
               <FileText className="h-8 w-8 text-muted-foreground/40" />
             </div>
             <h3 className="mb-1 font-semibold text-foreground/80">No notes yet</h3>
-            <p className="mb-6 text-sm text-muted-foreground">Tap the + button to create your first encrypted note</p>
-            <Button onClick={() => handleNewNote()} size="sm">
+            <p className="mb-6 text-sm text-muted-foreground">Create your first encrypted note or capture something useful.</p>
+            <Button onClick={() => handleNewNote()} size="sm" className="mb-5">
               <Plus className="h-4 w-4" />
               Create Note
             </Button>
+            <div className="grid w-full max-w-sm grid-cols-2 gap-2">
+              {QUICK_ACTIONS.map(({ label, type, icon: Icon, description }) => (
+                <button
+                  key={type}
+                  onClick={() => handleNewNote(type)}
+                  className="rounded-xl border border-border/60 bg-surface-2 p-3 text-left transition-colors hover:bg-surface-3"
+                >
+                  <Icon className="mb-2 h-4 w-4 text-primary" />
+                  <p className="text-sm font-medium text-foreground">{label}</p>
+                  <p className="text-xs text-muted-foreground">{description}</p>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
