@@ -63,7 +63,7 @@ export function NoteTasksPanel({ noteId }: Props) {
       </div>
 
       {tasks.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border/60 px-3 py-5 text-center text-xs text-muted-foreground">
+        <p className="rounded-lg border border-dashed border-border/60 px-3 py-5 text-center text-sm text-muted-foreground">
           Add action items without leaving the note.
         </p>
       ) : (

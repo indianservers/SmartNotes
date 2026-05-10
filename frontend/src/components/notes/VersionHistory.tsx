@@ -63,7 +63,7 @@ export function VersionHistory({ noteId, open, onClose, onRestore }: Props) {
                   <p className="text-xs font-medium text-foreground truncate">
                     {i === 0 ? 'Latest version' : `Version ${versions.length - i}`}
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(v.created_at)}</p>
+                  <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{formatDate(v.created_at)}</p>
                   <p className="text-[10px] text-muted-foreground">{v.word_count} words</p>
                 </button>
               ))}
@@ -76,7 +76,7 @@ export function VersionHistory({ noteId, open, onClose, onRestore }: Props) {
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
                     <div>
                       <p className="text-sm font-semibold truncate">{selected.title || 'Untitled'}</p>
-                      <p className="text-[10px] text-muted-foreground">{formatDate(selected.created_at)} · {selected.word_count} words</p>
+                      <p className="font-mono text-[10px] text-muted-foreground">{formatDate(selected.created_at)} · {selected.word_count} words</p>
                     </div>
                     <Button
                       size="sm"

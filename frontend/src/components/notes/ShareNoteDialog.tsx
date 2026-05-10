@@ -88,7 +88,7 @@ export function ShareNoteDialog({ noteId, open, onClose }: { noteId: string; ope
               </div>
             ))}
             {shares.length === 0 && (
-              <p className="rounded-lg border border-dashed border-border/60 px-3 py-5 text-center text-xs text-muted-foreground">
+              <p className="rounded-lg border border-dashed border-border/60 px-3 py-5 text-center text-sm text-muted-foreground">
                 No one else has access yet.
               </p>
             )}

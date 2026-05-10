@@ -173,7 +173,7 @@ export default function NotebooksPage() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b border-border/40 bg-background/95 backdrop-blur-md px-4 py-3">
         <div className="mx-auto flex max-w-screen-sm items-center justify-between">
-          <h1 className="text-lg font-bold">Notebooks</h1>
+          <h1 className="text-lg font-extrabold">Notebooks</h1>
           <Button size="icon" variant="ghost" onClick={() => { setParentId(null); setShowCreate(true) }}>
             <Plus className="h-5 w-5" />
           </Button>

@@ -125,7 +125,7 @@ export default function TasksPage() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b border-border/40 bg-background/95 backdrop-blur-md px-4 py-3">
         <div className="mx-auto flex max-w-screen-sm items-center justify-between">
-          <h1 className="text-lg font-bold">Tasks</h1>
+          <h1 className="text-lg font-extrabold">Tasks</h1>
           <div className="flex items-center gap-2">
             {/* List / Calendar toggle */}
             <div className="flex rounded-lg border border-border/60 bg-surface-2 overflow-hidden">

@@ -10,7 +10,7 @@ import { useNotes } from '@/hooks/useNotes'
 import { useAuthStore } from '@/stores/authStore'
 import { useNotesStore } from '@/stores/notesStore'
 import { useSyncStore } from '@/stores/syncStore'
-import { useThemeStore, type Theme } from '@/stores/themeStore'
+import { ACCENT_COLORS, useThemeStore, type AccentColor, type Theme } from '@/stores/themeStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn, getInitials, formatDate } from '@/lib/utils'
@@ -32,7 +32,7 @@ export default function SettingsPage() {
   const { state: syncState, lastSync, lastAttempt, pendingCount, failedCount, conflicts, lastError, clearConflicts } = useSyncStore()
   const [showChangePassword, setShowChangePassword] = useState(false)
   const { notes } = useNotesStore()
-  const { theme, setTheme } = useThemeStore()
+  const { theme, accent, setTheme, setAccent } = useThemeStore()
   const { createNote } = useNotesHook()
   const importRef = useRef<HTMLInputElement>(null)
 
@@ -40,7 +40,7 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b border-border/40 bg-background/95 backdrop-blur-md px-4 py-3">
         <div className="mx-auto max-w-screen-sm">
-          <h1 className="text-lg font-bold">Settings</h1>
+          <h1 className="text-lg font-extrabold">Settings</h1>
         </div>
       </header>
 
@@ -61,7 +61,7 @@ export default function SettingsPage() {
         {/* Sync */}
         <section className="rounded-2xl border border-border/60 bg-surface-1 overflow-hidden">
           <div className="px-4 py-3 border-b border-border/40">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sync</h2>
+            <h2 className="text-sm font-semibold text-foreground">Sync</h2>
           </div>
           <div className="divide-y divide-border/40">
             <SettingsRow
@@ -94,7 +94,7 @@ export default function SettingsPage() {
         {/* Security */}
         <section className="rounded-2xl border border-border/60 bg-surface-1 overflow-hidden">
           <div className="px-4 py-3 border-b border-border/40">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Security</h2>
+            <h2 className="text-sm font-semibold text-foreground">Security</h2>
           </div>
           <div className="divide-y divide-border/40">
             <SettingsRow
@@ -120,7 +120,7 @@ export default function SettingsPage() {
         {/* Appearance */}
         <section className="rounded-2xl border border-border/60 bg-surface-1 overflow-hidden">
           <div className="px-4 py-3 border-b border-border/40">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Appearance</h2>
+            <h2 className="text-sm font-semibold text-foreground">Appearance</h2>
           </div>
           <div className="px-4 py-3">
             <p className="text-xs text-muted-foreground mb-2">Theme</p>
@@ -145,13 +145,35 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
+            <p className="mb-2 mt-4 text-xs text-muted-foreground">Accent color</p>
+            <div className="grid grid-cols-5 gap-2">
+              {([
+                ['indigo', 'Indigo'],
+                ['violet', 'Violet'],
+                ['emerald', 'Emerald'],
+                ['amber', 'Amber'],
+                ['rose', 'Rose'],
+              ] as Array<[AccentColor, string]>).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => setAccent(value)}
+                  className={cn(
+                    'flex flex-col items-center gap-1 rounded-xl border px-2 py-2 text-[11px] font-medium transition-all',
+                    accent === value ? 'border-primary bg-primary/10 text-primary' : 'border-border/60 bg-surface-2 text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <span className="h-5 w-5 rounded-full" style={{ backgroundColor: ACCENT_COLORS[value] }} />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 
         {/* Storage */}
         <section className="rounded-2xl border border-border/60 bg-surface-1 overflow-hidden">
           <div className="px-4 py-3 border-b border-border/40">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Data</h2>
+            <h2 className="text-sm font-semibold text-foreground">Data</h2>
           </div>
           <div className="divide-y divide-border/40">
             <SettingsRow
@@ -233,7 +255,7 @@ export default function SettingsPage() {
         {/* Danger zone */}
         <section className="rounded-2xl border border-red-800/30 bg-red-950/10 overflow-hidden">
           <div className="px-4 py-3 border-b border-red-800/30">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-red-400/70">Account</h2>
+            <h2 className="text-sm font-semibold text-red-400">Account</h2>
           </div>
           <div className="divide-y divide-red-800/20">
             <SettingsRow

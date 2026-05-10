@@ -98,7 +98,7 @@ export default function SignupPage() {
           <ShieldCheck className="h-8 w-8 text-primary" />
         </div>
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">Smart Notes</h1>
+          <h1 className="text-2xl font-extrabold text-foreground">Smart Notes</h1>
           <p className="text-sm text-muted-foreground">Create your encrypted vault</p>
         </div>
       </div>

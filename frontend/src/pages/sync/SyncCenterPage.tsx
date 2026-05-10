@@ -14,7 +14,7 @@ export default function SyncCenterPage() {
       <header className="sticky top-0 z-30 border-b border-border/40 bg-background/95 px-4 py-3 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold">Sync Center</h1>
+            <h1 className="text-lg font-extrabold">Sync Center</h1>
             <p className="text-xs text-muted-foreground">Encrypted backup, devices, queues, and conflicts</p>
           </div>
           <Button size="sm" onClick={() => syncNow()}>

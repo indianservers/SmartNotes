@@ -18,7 +18,8 @@ export function AppLayout() {
         <BottomNav />
       </div>
       <Toaster
-        position="top-center"
+        position={typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 'bottom-center' : 'top-center'}
+        mobileOffset={16}
         toastOptions={{
           style: {
             background: 'var(--color-surface-1)',

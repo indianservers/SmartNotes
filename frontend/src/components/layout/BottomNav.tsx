@@ -30,7 +30,12 @@ export function BottomNav() {
           >
             {({ isActive }) => (
               <>
-                <Icon className={cn('h-5 w-5 transition-transform', isActive && 'scale-110')} />
+                <Icon
+                  className={cn(
+                    'h-5 w-5 transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
+                    isActive && 'scale-110',
+                  )}
+                />
                 <span className="font-medium">{label}</span>
               </>
             )}

@@ -43,6 +43,7 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
   const [menuOpen, setMenuOpen] = useState(false)
   const [swipeX, setSwipeX] = useState(0)
   const [deleteRevealed, setDeleteRevealed] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const longPressTriggered = useRef(false)
@@ -100,7 +101,14 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
 
   async function handleDeleteFromSwipe(event: React.MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
-    await deleteNote(note.id)
+    beginDelete()
+  }
+
+  function beginDelete() {
+    setDeleting(true)
+    window.setTimeout(() => {
+      void deleteNote(note.id)
+    }, 180)
   }
 
   function handleContextMenu(event: React.MouseEvent<HTMLDivElement>) {
@@ -123,6 +131,7 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
             'active:scale-[0.99] hover:bg-surface-3/40',
             bg, border,
             isDragTarget && 'ring-2 ring-primary/70',
+            deleting && 'opacity-0 scale-95',
           )}
           style={{ transform: `translateX(${swipeX}px)` }}
           draggable={draggable}
@@ -146,14 +155,14 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
               {note.is_favorite && <Star className="h-3 w-3 text-amber-400 flex-shrink-0" />}
             </div>
             {preview && <p className="mt-0.5 text-xs text-muted-foreground truncate">{preview}</p>}
-            <span className="text-[10px] text-muted-foreground/60">{formatDate(note.updated_at)}</span>
+            <span className="font-mono text-[10px] text-muted-foreground/60">{formatDate(note.updated_at)}</span>
           </div>
           <NoteMenu
             note={note}
             notebooks={notebooks}
             onMove={(notebookId) => updateNote(note.id, { notebook_id: notebookId })}
             onUngroup={() => updateNote(note.id, { group_id: null })}
-            onDelete={() => deleteNote(note.id)}
+            onDelete={beginDelete}
             onPin={() => pinNote(note.id, !note.is_pinned)}
             onFavorite={() => favoriteNote(note.id, !note.is_favorite)}
             onArchive={() => archiveNote(note.id, true)}
@@ -173,6 +182,7 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
         bg, border,
         note.is_pinned && 'ring-1 ring-primary/30',
         isDragTarget && 'ring-2 ring-primary/70',
+        deleting && 'opacity-0 scale-95',
       )}
       draggable={draggable}
       onDragStart={onDragStart}
@@ -202,7 +212,7 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
               notebooks={notebooks}
               onMove={(notebookId) => updateNote(note.id, { notebook_id: notebookId })}
               onUngroup={() => updateNote(note.id, { group_id: null })}
-              onDelete={() => deleteNote(note.id)}
+              onDelete={beginDelete}
               onPin={() => pinNote(note.id, !note.is_pinned)}
               onFavorite={() => favoriteNote(note.id, !note.is_favorite)}
               onArchive={() => archiveNote(note.id, true)}
@@ -237,7 +247,7 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
 
       {/* Footer */}
       <div className="mt-auto flex items-center justify-between pt-2">
-        <span className="text-[10px] text-muted-foreground/60">{formatDate(note.updated_at)}</span>
+        <span className="font-mono text-[10px] text-muted-foreground/60">{formatDate(note.updated_at)}</span>
         <div className="flex items-center gap-2">
           {note.group_id && (
             <span title="Grouped note">
@@ -274,7 +284,7 @@ function ChecklistPreview({ content }: { content: string }) {
       {items.map((item, i) => (
         <div key={i} className="flex items-center gap-2 text-xs">
           <div className={cn('h-3.5 w-3.5 rounded flex-shrink-0 border', item.checked ? 'bg-primary border-primary' : 'border-border')} />
-          <span className={cn('truncate', item.checked && 'line-through text-muted-foreground')}>{item.text}</span>
+          <span className={cn('truncate transition-all', item.checked && 'line-through text-muted-foreground opacity-60')}>{item.text}</span>
         </div>
       ))}
       <p className="text-[10px] text-muted-foreground/60">{done}/{items.length} done</p>

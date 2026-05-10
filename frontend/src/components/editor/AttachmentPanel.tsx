@@ -90,14 +90,14 @@ export function AttachmentPanel({ noteId, onChanged }: Props) {
       />
 
       {!noteId ? (
-        <p className="rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-xs text-muted-foreground">
+        <p className="rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
           Save the note before attaching files.
         </p>
       ) : attachments.length === 0 ? (
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="w-full rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+          className="w-full rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
         >
           Drop files here, or choose images, PDFs, and documents.
         </button>

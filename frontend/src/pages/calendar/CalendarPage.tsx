@@ -41,7 +41,7 @@ export default function CalendarPage() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b border-border/40 bg-background/95 px-4 py-3 backdrop-blur-md">
         <div className="mx-auto max-w-screen-sm">
-          <h1 className="text-lg font-bold">Calendar</h1>
+          <h1 className="text-lg font-extrabold">Calendar</h1>
         </div>
       </header>
 

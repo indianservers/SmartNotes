@@ -98,7 +98,7 @@ export function ChecklistEditor({ content, onChange, readOnly = false }: Props) 
               )}
             </button>
             {readOnly ? (
-              <span className={cn('text-sm flex-1', item.checked && 'line-through text-muted-foreground')}>
+              <span className={cn('text-sm flex-1 transition-all', item.checked && 'line-through text-muted-foreground opacity-60')}>
                 {item.text || 'Empty item'}
               </span>
             ) : (
@@ -110,7 +110,8 @@ export function ChecklistEditor({ content, onChange, readOnly = false }: Props) 
                 placeholder="Add item…"
                 className={cn(
                   'flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/40',
-                  item.checked && 'line-through text-muted-foreground',
+                  'transition-all',
+                  item.checked && 'line-through text-muted-foreground opacity-60',
                 )}
               />
             )}

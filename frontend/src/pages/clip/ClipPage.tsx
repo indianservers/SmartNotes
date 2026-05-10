@@ -54,7 +54,7 @@ export default function ClipPage() {
             <Globe className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold">New Web Clip</h1>
+            <h1 className="text-lg font-extrabold">New Web Clip</h1>
             <p className="text-sm text-muted-foreground">Save a page, link, or selected text.</p>
           </div>
         </div>

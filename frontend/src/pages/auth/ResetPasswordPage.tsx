@@ -55,7 +55,7 @@ export default function ResetPasswordPage() {
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/20">
           <ShieldCheck className="h-8 w-8 text-primary" />
         </div>
-        <h1 className="text-2xl font-bold">Smart Notes</h1>
+        <h1 className="text-2xl font-extrabold">Smart Notes</h1>
       </div>
 
       <div className="w-full max-w-sm rounded-2xl border border-border/60 bg-surface-1 p-6 shadow-xl">
