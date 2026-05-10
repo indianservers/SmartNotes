@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, RefreshCw, Grid3X3, List, Filter,
@@ -67,6 +67,9 @@ export default function DashboardPage() {
   const [density, setDensity] = useState<Density>('comfortable')
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null)
   const [dragTargetId, setDragTargetId] = useState<string | null>(null)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [pullRefreshing, setPullRefreshing] = useState(false)
+  const pullStartY = useRef<number | null>(null)
   const filteredNotes = useFilteredNotes()
   const categories = Array.from(new Set(filteredNotes.flatMap((note) => note.category_names))).sort((a, b) => a.localeCompare(b))
 
@@ -94,6 +97,41 @@ export default function DashboardPage() {
 
   function handleNewNote(type: NoteType = 'rich') {
     navigate(`/notes/new?type=${type}`)
+  }
+
+  async function runPullRefresh() {
+    setPullRefreshing(true)
+    try {
+      await syncNow()
+      await refreshAll()
+    } finally {
+      setPullRefreshing(false)
+      setPullDistance(0)
+    }
+  }
+
+  function handlePullStart(event: React.TouchEvent<HTMLDivElement>) {
+    if (window.scrollY > 0 || pullRefreshing) return
+    pullStartY.current = event.touches[0].clientY
+  }
+
+  function handlePullMove(event: React.TouchEvent<HTMLDivElement>) {
+    if (pullStartY.current === null || window.scrollY > 0 || pullRefreshing) return
+    const distance = event.touches[0].clientY - pullStartY.current
+    if (distance <= 0) {
+      setPullDistance(0)
+      return
+    }
+    setPullDistance(Math.min(96, distance * 0.55))
+  }
+
+  function handlePullEnd() {
+    if (pullDistance >= 72 && !pullRefreshing) {
+      void runPullRefresh()
+      return
+    }
+    pullStartY.current = null
+    setPullDistance(0)
   }
 
   const sortedNotes = [...filteredNotes].sort((a, b) => {
@@ -148,7 +186,23 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-background">
+    <div
+      className="relative min-h-screen bg-background"
+      onTouchStart={handlePullStart}
+      onTouchMove={handlePullMove}
+      onTouchEnd={handlePullEnd}
+      onTouchCancel={handlePullEnd}
+    >
+      <div
+        className="pointer-events-none fixed left-1/2 top-2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border/60 bg-surface-1 px-3 py-1.5 text-xs text-muted-foreground shadow-lg transition-all"
+        style={{
+          opacity: pullDistance > 8 || pullRefreshing ? 1 : 0,
+          transform: `translate(-50%, ${pullRefreshing ? 8 : Math.max(0, pullDistance - 36)}px)`,
+        }}
+      >
+        <RefreshCw className={cn('h-3.5 w-3.5 text-primary', (pullRefreshing || pullDistance >= 72) && 'animate-spin')} />
+        {pullRefreshing ? 'Syncing' : pullDistance >= 72 ? 'Release to sync' : 'Pull to refresh'}
+      </div>
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-border/40 bg-background/95 backdrop-blur-md">
         <div className="mx-auto max-w-screen-sm px-4 py-3">

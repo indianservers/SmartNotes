@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Pin, Star, Archive, Trash2, Copy, MoreVertical,
@@ -41,54 +41,126 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
   const { deleteNote, pinNote, favoriteNote, archiveNote, updateNote } = useNotes()
   const { notebooks } = useNotesStore()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [swipeX, setSwipeX] = useState(0)
+  const [deleteRevealed, setDeleteRevealed] = useState(false)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const longPressTriggered = useRef(false)
 
   const { bg, border } = getColorClasses(note.color)
   const preview = truncate(stripHtml(note.content), 120)
   const TypeIcon = TYPE_ICON[note.note_type]
 
   function handleOpen() {
+    if (longPressTriggered.current || deleteRevealed) {
+      longPressTriggered.current = false
+      return
+    }
     navigate(`/notes/${note.id}`)
+  }
+
+  function clearLongPress() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+    longPressTimer.current = null
+  }
+
+  function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    const touch = event.touches[0]
+    touchStart.current = { x: touch.clientX, y: touch.clientY }
+    longPressTriggered.current = false
+    clearLongPress()
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true
+      setMenuOpen(true)
+      if (navigator.vibrate) navigator.vibrate(12)
+    }, 500)
+  }
+
+  function handleTouchMove(event: React.TouchEvent<HTMLDivElement>) {
+    if (!touchStart.current) return
+    const touch = event.touches[0]
+    const dx = touch.clientX - touchStart.current.x
+    const dy = touch.clientY - touchStart.current.y
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) clearLongPress()
+    if (view === 'list' && dx < -12 && Math.abs(dx) > Math.abs(dy)) {
+      setSwipeX(Math.max(-96, dx))
+    }
+  }
+
+  function handleTouchEnd() {
+    clearLongPress()
+    if (view === 'list') {
+      setDeleteRevealed(swipeX < -56)
+      setSwipeX(swipeX < -56 ? -88 : 0)
+    }
+    window.setTimeout(() => {
+      longPressTriggered.current = false
+    }, 0)
+  }
+
+  async function handleDeleteFromSwipe(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    await deleteNote(note.id)
+  }
+
+  function handleContextMenu(event: React.MouseEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setMenuOpen(true)
   }
 
   if (view === 'list') {
     return (
-      <div
-        className={cn(
-          'flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-all',
-          'active:scale-[0.99] hover:bg-surface-3/40',
-        bg, border,
-        isDragTarget && 'ring-2 ring-primary/70',
-      )}
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      onClick={handleOpen}
-    >
-        {note.color && (
-          <div className="mt-0.5 h-2 w-2 flex-shrink-0 rounded-full" style={{ background: note.color }} />
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate font-medium text-sm text-foreground">{note.title || 'Untitled'}</span>
-            {note.is_pinned && <Pin className="h-3 w-3 text-primary flex-shrink-0" />}
-            {note.is_favorite && <Star className="h-3 w-3 text-amber-400 flex-shrink-0" />}
+      <div className="relative overflow-hidden rounded-xl">
+        <button
+          className="absolute inset-y-0 right-0 flex w-24 items-center justify-center rounded-xl bg-red-600 text-sm font-medium text-white"
+          onClick={handleDeleteFromSwipe}
+        >
+          Delete
+        </button>
+        <div
+          className={cn(
+            'relative flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-all',
+            'active:scale-[0.99] hover:bg-surface-3/40',
+            bg, border,
+            isDragTarget && 'ring-2 ring-primary/70',
+          )}
+          style={{ transform: `translateX(${swipeX}px)` }}
+          draggable={draggable}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          onContextMenu={handleContextMenu}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+          onClick={handleOpen}
+        >
+          {note.color && (
+            <div className="mt-0.5 h-2 w-2 flex-shrink-0 rounded-full" style={{ background: note.color }} />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="truncate font-medium text-sm text-foreground">{note.title || 'Untitled'}</span>
+              {note.is_pinned && <Pin className="h-3 w-3 text-primary flex-shrink-0" />}
+              {note.is_favorite && <Star className="h-3 w-3 text-amber-400 flex-shrink-0" />}
+            </div>
+            {preview && <p className="mt-0.5 text-xs text-muted-foreground truncate">{preview}</p>}
+            <span className="text-[10px] text-muted-foreground/60">{formatDate(note.updated_at)}</span>
           </div>
-          {preview && <p className="mt-0.5 text-xs text-muted-foreground truncate">{preview}</p>}
-          <span className="text-[10px] text-muted-foreground/60">{formatDate(note.updated_at)}</span>
+          <NoteMenu
+            note={note}
+            notebooks={notebooks}
+            onMove={(notebookId) => updateNote(note.id, { notebook_id: notebookId })}
+            onUngroup={() => updateNote(note.id, { group_id: null })}
+            onDelete={() => deleteNote(note.id)}
+            onPin={() => pinNote(note.id, !note.is_pinned)}
+            onFavorite={() => favoriteNote(note.id, !note.is_favorite)}
+            onArchive={() => archiveNote(note.id, true)}
+            open={menuOpen}
+            setOpen={setMenuOpen}
+          />
         </div>
-        <NoteMenu
-          note={note}
-          notebooks={notebooks}
-          onMove={(notebookId) => updateNote(note.id, { notebook_id: notebookId })}
-          onUngroup={() => updateNote(note.id, { group_id: null })}
-          onDelete={() => deleteNote(note.id)}
-          onPin={() => pinNote(note.id, !note.is_pinned)}
-          onFavorite={() => favoriteNote(note.id, !note.is_favorite)}
-          onArchive={() => archiveNote(note.id, true)}
-          open={menuOpen}
-          setOpen={setMenuOpen}
-        />
       </div>
     )
   }
@@ -106,6 +178,11 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
+      onContextMenu={handleContextMenu}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
       onClick={handleOpen}
     >
       {/* Header */}

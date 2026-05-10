@@ -58,6 +58,7 @@ export default function NoteEditorPage() {
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showShare, setShowShare] = useState(false)
+  const [keyboardInset, setKeyboardInset] = useState(0)
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDirty = useRef(false)
@@ -196,6 +197,36 @@ export default function NoteEditorPage() {
     }
   }, [save])
 
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) return
+    const visualViewport = viewport
+
+    function updateKeyboardInset() {
+      const inset = Math.max(0, window.innerHeight - visualViewport.height - visualViewport.offsetTop)
+      setKeyboardInset(inset)
+      if (inset > 80) {
+        window.setTimeout(() => {
+          const active = document.activeElement
+          if (active instanceof HTMLElement) {
+            active.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }
+        }, 80)
+      }
+    }
+
+    visualViewport.addEventListener('resize', updateKeyboardInset)
+    visualViewport.addEventListener('scroll', updateKeyboardInset)
+    document.addEventListener('focusin', updateKeyboardInset)
+    updateKeyboardInset()
+
+    return () => {
+      visualViewport.removeEventListener('resize', updateKeyboardInset)
+      visualViewport.removeEventListener('scroll', updateKeyboardInset)
+      document.removeEventListener('focusin', updateKeyboardInset)
+    }
+  }, [])
+
   const activeColor = NOTE_COLORS.find((c) => c.value === color)
   const categoryChips = parseCategories(categoriesText)
   const currentNotebook = notebooks.find((notebook) => notebook.id === notebookId)
@@ -324,7 +355,10 @@ export default function NoteEditorPage() {
       </div>
 
       {/* Editor */}
-      <div className="mx-auto grid max-w-6xl gap-5 px-4 py-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+      <div
+        className="mx-auto grid max-w-6xl gap-5 px-4 py-5 xl:grid-cols-[minmax(0,1fr)_280px]"
+        style={{ paddingBottom: keyboardInset ? keyboardInset + 32 : undefined }}
+      >
         <div className="min-w-0">
         {/* Title */}
         <input
