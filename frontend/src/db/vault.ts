@@ -1,10 +1,13 @@
 import { v4 as uuidv4 } from 'uuid'
-import type { LocalNote, LocalNotebook, LocalTag, Note, Notebook, Tag, NoteType, SyncStatus, EncryptedPayload } from '@/types'
+import type { Attachment, LocalAttachment, LocalNote, LocalNotebook, LocalTag, Note, Notebook, Tag, NoteType, SyncStatus } from '@/types'
 import {
   encryptString,
   decryptString,
+  encryptBuffer,
+  decryptBuffer,
   encryptNote,
   decryptNote,
+  type EncryptedPayload,
   type WrappedMasterKey,
 } from '@/crypto/encryption'
 import {
@@ -19,6 +22,11 @@ import {
   saveTag,
   getTagsByUser,
   deleteTag as dbDeleteTag,
+  saveAttachment,
+  getAttachment,
+  getAttachmentsByNote,
+  getAttachmentsByUser,
+  deleteAttachment as dbDeleteAttachment,
   addToSyncQueue,
   getPendingSyncQueue,
 } from './indexeddb'
@@ -78,6 +86,9 @@ export async function createNote(
     note_type?: NoteType
     notebook_id?: string | null
     color?: string | null
+    source_url?: string | null
+    due_at?: string | null
+    reminder_at?: string | null
     tags?: string[]
   },
 ): Promise<Note> {
@@ -105,9 +116,9 @@ export async function createNote(
     content_hash,
     color: input.color ?? null,
     icon: null,
-    source_url: null,
-    reminder_at: null,
-    due_at: null,
+    source_url: input.source_url ?? null,
+    reminder_at: input.reminder_at ?? null,
+    due_at: input.due_at ?? null,
     is_pinned: 0,
     is_favorite: 0,
     is_archived: 0,
@@ -224,7 +235,9 @@ export async function getAllNotes(opts: { archived?: boolean; deleted?: boolean 
         const encTitle = n.encrypted_title ? (JSON.parse(n.encrypted_title) as EncPayload) : null
         const encPayload = JSON.parse(n.encrypted_payload) as EncPayload
         const { title, content } = await decryptNote(encTitle, encPayload, masterKey)
-        return localNoteToNote(n, title, content)
+        const note = localNoteToNote(n, title, content)
+        note.attachments = await getNoteAttachments(n.id)
+        return note
       } catch {
         return localNoteToNote(n, '[Encrypted]', '')
       }
@@ -240,7 +253,9 @@ export async function getNoteById(id: string): Promise<Note | null> {
   const encTitle = raw.encrypted_title ? (JSON.parse(raw.encrypted_title) as EncPayload) : null
   const encPayload = JSON.parse(raw.encrypted_payload) as EncPayload
   const { title, content } = await decryptNote(encTitle, encPayload, masterKey)
-  return localNoteToNote(raw, title, content)
+  const note = localNoteToNote(raw, title, content)
+  note.attachments = await getNoteAttachments(raw.id)
+  return note
 }
 
 function localNoteToNote(raw: LocalNote, title: string, content: string): Note {
@@ -264,6 +279,209 @@ function localNoteToNote(raw: LocalNote, title: string, content: string): Note {
     created_at: raw.created_at,
     updated_at: raw.local_updated_at,
   }
+}
+
+// ── Attachments ─────────────────────────────────────────────────────────────
+
+export async function createAttachment(input: {
+  note_id: string
+  file: File
+  search_text?: string
+}): Promise<Attachment> {
+  const { masterKey, userId } = requireVault()
+  const id = uuidv4()
+  const ts = now()
+  const fileData = await input.file.arrayBuffer()
+  const [encryptedName, encryptedData, encryptedSearchText, contentHash] = await Promise.all([
+    encryptString(input.file.name, masterKey),
+    encryptBuffer(fileData, masterKey),
+    input.search_text ? encryptString(input.search_text, masterKey) : Promise.resolve(null),
+    hashBuffer(fileData),
+  ])
+
+  const local: LocalAttachment = {
+    id,
+    server_id: null,
+    note_id: input.note_id,
+    user_id: userId,
+    encrypted_file_name: JSON.stringify(encryptedName),
+    encrypted_data: JSON.stringify(encryptedData),
+    encrypted_search_text: encryptedSearchText ? JSON.stringify(encryptedSearchText) : null,
+    mime_type: input.file.type || 'application/octet-stream',
+    file_size: input.file.size,
+    local_file_path: null,
+    encrypted_file_key: null,
+    encryption_algorithm: 'AES-GCM',
+    iv: encryptedData.iv,
+    content_hash: contentHash,
+    storage_provider: 'indexeddb',
+    upload_status: 'pending_upload',
+    sync_status: 'pending_create',
+    sync_version: 1,
+    created_at: ts,
+    updated_at: ts,
+  }
+
+  await saveAttachment(local)
+  await queueSync(userId, 'attachment', id, 'create', local)
+  return localAttachmentToAttachment(local, input.file.name, input.search_text ?? '')
+}
+
+export async function getNoteAttachments(noteId: string): Promise<Attachment[]> {
+  const { masterKey } = requireVault()
+  const raw = await getAttachmentsByNote(noteId)
+  const attachments = await Promise.all(
+    raw.map(async (att) => {
+      const fileName = att.encrypted_file_name
+        ? await decryptString(JSON.parse(att.encrypted_file_name), masterKey).catch(() => 'Attachment')
+        : 'Attachment'
+      const searchText = att.encrypted_search_text
+        ? await decryptString(JSON.parse(att.encrypted_search_text), masterKey).catch(() => '')
+        : ''
+      return localAttachmentToAttachment(att, fileName, searchText)
+    }),
+  )
+  return attachments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+}
+
+export async function getAttachmentBlob(id: string): Promise<Blob | null> {
+  const { masterKey } = requireVault()
+  const raw = await getAttachment(id)
+  if (!raw?.encrypted_data) return null
+  const data = await decryptBuffer(JSON.parse(raw.encrypted_data), masterKey)
+  return new Blob([data], { type: raw.mime_type ?? 'application/octet-stream' })
+}
+
+export async function markEntitySynced(entityType: string, localId: string, serverId?: string, syncVersion = 1): Promise<void> {
+  if (entityType === 'note') {
+    const note = await getNote(localId)
+    if (note) await saveNote({ ...note, server_id: serverId ?? note.server_id, sync_status: 'synced', sync_version: syncVersion, server_updated_at: now() })
+  } else if (entityType === 'notebook') {
+    const notebook = await getNotebook(localId)
+    if (notebook) await saveNotebook({ ...notebook, server_id: serverId ?? notebook.server_id, sync_status: 'synced', sync_version: syncVersion })
+  } else if (entityType === 'tag') {
+    const tag = (await getAllLocalRawTags()).find((t) => t.id === localId)
+    if (tag) await saveTag({ ...tag, server_id: serverId ?? tag.server_id, sync_status: 'synced', sync_version: syncVersion })
+  } else if (entityType === 'attachment') {
+    const att = await getAttachment(localId)
+    if (att) await saveAttachment({ ...att, server_id: serverId ?? att.server_id, sync_status: 'synced', sync_version: syncVersion })
+  }
+}
+
+export async function applyPulledSync(data: {
+  notes?: Array<Record<string, unknown>>
+  notebooks?: Array<Record<string, unknown>>
+  tags?: Array<Record<string, unknown>>
+  attachments?: Array<Record<string, unknown>>
+}): Promise<void> {
+  const { userId } = requireVault()
+  for (const note of data.notes ?? []) {
+    const clientId = stringOrNull(note.client_id)
+    const serverId = String(note.id)
+    const local = clientId ? await getNote(clientId) : undefined
+    const id = local?.id ?? clientId ?? serverId
+    const incoming: LocalNote = {
+      id,
+      server_id: serverId,
+      user_id: userId,
+      notebook_id: stringOrNull(note.notebook_id),
+      note_type: (note.note_type as NoteType) ?? 'rich',
+      encrypted_title: stringOrNull(note.encrypted_title),
+      encrypted_payload: String(note.encrypted_payload ?? ''),
+      encrypted_note_key: null,
+      encryption_version: 1,
+      encryption_algorithm: 'AES-GCM',
+      iv: stringOrNull(note.iv) ?? '',
+      content_hash: stringOrNull(note.content_hash),
+      color: stringOrNull(note.color),
+      icon: null,
+      source_url: stringOrNull(note.source_url),
+      reminder_at: stringOrNull(note.reminder_at),
+      due_at: stringOrNull(note.due_at),
+      is_pinned: boolToNum(note.is_pinned),
+      is_favorite: boolToNum(note.is_favorite),
+      is_archived: boolToNum(note.is_archived),
+      is_deleted: boolToNum(note.is_deleted),
+      sync_status: 'synced',
+      sync_version: Number(note.sync_version ?? 1),
+      local_updated_at: stringOrNull(note.updated_at) ?? now(),
+      server_updated_at: stringOrNull(note.updated_at),
+      created_at: stringOrNull(note.created_at) ?? now(),
+      deleted_at: stringOrNull(note.deleted_at),
+    }
+    if (!local || !String(local.sync_status).startsWith('pending_')) await saveNote(incoming)
+  }
+
+  for (const att of data.attachments ?? []) {
+    const clientId = stringOrNull(att.client_id)
+    const serverId = String(att.id)
+    const local = clientId ? await getAttachment(clientId) : undefined
+    const id = local?.id ?? clientId ?? serverId
+    const incoming: LocalAttachment = {
+      id,
+      server_id: serverId,
+      note_id: stringOrNull(att.note_id),
+      user_id: userId,
+      encrypted_file_name: stringOrNull(att.encrypted_file_name),
+      encrypted_data: stringOrNull(att.encrypted_data),
+      encrypted_search_text: stringOrNull(att.encrypted_search_text),
+      mime_type: stringOrNull(att.mime_type),
+      file_size: att.file_size == null ? null : Number(att.file_size),
+      local_file_path: null,
+      encrypted_file_key: stringOrNull(att.encrypted_file_key),
+      encryption_algorithm: String(att.encryption_algorithm ?? 'AES-GCM'),
+      iv: stringOrNull(att.iv),
+      content_hash: stringOrNull(att.content_hash),
+      storage_provider: String(att.storage_provider ?? 'indexeddb'),
+      upload_status: 'uploaded',
+      sync_status: 'synced',
+      sync_version: Number(att.sync_version ?? 1),
+      created_at: stringOrNull(att.created_at) ?? now(),
+      updated_at: stringOrNull(att.updated_at) ?? now(),
+    }
+    if (!local || !String(local.sync_status).startsWith('pending_')) await saveAttachment(incoming)
+  }
+}
+
+async function getAllLocalRawTags(): Promise<LocalTag[]> {
+  const { userId } = requireVault()
+  return getTagsByUser(userId)
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function boolToNum(value: unknown): number {
+  return value === true || value === 1 ? 1 : 0
+}
+
+export async function deleteAttachment(id: string): Promise<void> {
+  const { userId } = requireVault()
+  await dbDeleteAttachment(id)
+  await queueSync(userId, 'attachment', id, 'delete')
+}
+
+function localAttachmentToAttachment(raw: LocalAttachment, fileName: string, searchText: string): Attachment {
+  return {
+    id: raw.id,
+    note_id: raw.note_id,
+    file_name: fileName,
+    mime_type: raw.mime_type,
+    file_size: raw.file_size,
+    local_file_path: raw.local_file_path,
+    search_text: searchText,
+    upload_status: raw.upload_status,
+    created_at: raw.created_at,
+  }
+}
+
+async function hashBuffer(buffer: ArrayBuffer): Promise<string> {
+  const hash = await crypto.subtle.digest('SHA-256', buffer)
+  const bytes = new Uint8Array(hash)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
 }
 
 // ── Notebooks ─────────────────────────────────────────────────────────────────
@@ -419,4 +637,22 @@ function localTagToTag(raw: LocalTag, name: string): Tag {
 export async function getPendingSync() {
   if (!_userId) return []
   return getPendingSyncQueue(_userId)
+}
+
+export async function getEncryptedBackupPayload() {
+  const { userId } = requireVault()
+  const [notes, notebooks, tags, attachments] = await Promise.all([
+    getNotesByUser(userId),
+    getNotebooksByUser(userId),
+    getTagsByUser(userId),
+    getAttachmentsByUser(userId),
+  ])
+  return {
+    version: 1,
+    created_at: new Date().toISOString(),
+    notes,
+    notebooks,
+    tags,
+    attachments,
+  }
 }

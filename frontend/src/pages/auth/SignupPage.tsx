@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function SignupPage() {
-  const { signup, loading, error, setError } = useAuth()
+  const { signup, googleLogin, loading, error, setError } = useAuth()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,6 +26,12 @@ export default function SignupPage() {
     if (!acceptTerms) { setError('Please accept the terms'); return }
     const result = await signup({ full_name: fullName, email, password, confirm_password: confirmPassword })
     if (result) setRecoveryKey(result.recovery_key)
+  }
+
+  async function handleGoogleSignup() {
+    setError(null)
+    const result = await googleLogin()
+    if (result?.recovery_key) setRecoveryKey(result.recovery_key)
   }
 
   async function copyRecoveryKey() {
@@ -193,6 +199,16 @@ export default function SignupPage() {
             Create Account
           </Button>
         </form>
+
+        <div className="my-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">or</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <Button type="button" variant="outline" size="lg" className="w-full" loading={loading} onClick={handleGoogleSignup}>
+          Signup with Google
+        </Button>
 
         <p className="mt-5 text-center text-sm text-muted-foreground">
           Already have an account?{' '}

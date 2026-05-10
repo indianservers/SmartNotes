@@ -134,6 +134,8 @@ CREATE TABLE IF NOT EXISTS attachments (
   note_id VARCHAR(36),
   user_id VARCHAR(36) NOT NULL,
   encrypted_file_name TEXT,
+  encrypted_data LONGTEXT,
+  encrypted_search_text LONGTEXT,
   mime_type VARCHAR(100),
   file_size INT,
   storage_path TEXT,
@@ -142,10 +144,48 @@ CREATE TABLE IF NOT EXISTS attachments (
   iv VARCHAR(255),
   content_hash VARCHAR(255),
   storage_provider VARCHAR(20) DEFAULT 'local',
+  sync_version INT DEFAULT 1,
+  is_deleted TINYINT(1) DEFAULT 0,
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id VARCHAR(36) PRIMARY KEY,
+  client_id VARCHAR(36),
+  user_id VARCHAR(36) NOT NULL,
+  note_id VARCHAR(36),
+  title VARCHAR(255) NOT NULL,
+  starts_at DATETIME(6) NOT NULL,
+  ends_at DATETIME(6),
+  location VARCHAR(255),
+  attendees TEXT,
+  provider VARCHAR(30) DEFAULT 'manual',
+  external_id VARCHAR(255),
+  is_deleted TINYINT(1) DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE SET NULL,
+  INDEX idx_calendar_user_start (user_id, starts_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS shared_notes (
+  id VARCHAR(36) PRIMARY KEY,
+  note_id VARCHAR(36) NOT NULL,
+  owner_user_id VARCHAR(36) NOT NULL,
+  recipient_email VARCHAR(255) NOT NULL,
+  permission VARCHAR(20) DEFAULT 'view',
+  status VARCHAR(20) DEFAULT 'active',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+  FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_shared_note_recipient (note_id, recipient_email),
+  INDEX idx_shared_owner (owner_user_id),
+  INDEX idx_shared_recipient (recipient_email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS note_versions (

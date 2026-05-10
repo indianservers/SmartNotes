@@ -10,6 +10,18 @@ import { createSavedSearch, getSavedSearches, deleteSavedSearch } from '@/db/tas
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 
+function parseSavedFilters(filters: string): { type_filter: NoteType | null; tag_filter: string | null } {
+  try {
+    const parsed = JSON.parse(filters)
+    return {
+      type_filter: parsed.type_filter ?? null,
+      tag_filter: parsed.tag_filter ?? null,
+    }
+  } catch {
+    return { type_filter: null, tag_filter: null }
+  }
+}
+
 const FILTERS: Array<{ type: NoteType; label: string }> = [
   { type: 'rich', label: 'Rich' },
   { type: 'checklist', label: 'Checklist' },
@@ -47,7 +59,11 @@ export default function SearchPage() {
         const q = query.toLowerCase()
         return (
           n.title.toLowerCase().includes(q) ||
-          stripHtml(n.content).toLowerCase().includes(q)
+          stripHtml(n.content).toLowerCase().includes(q) ||
+          (n.attachments ?? []).some((att) =>
+            (att.file_name ?? '').toLowerCase().includes(q) ||
+            (att.search_text ?? '').toLowerCase().includes(q),
+          )
         )
       })
   }, [query, typeFilter, tagFilter, notes])
@@ -55,16 +71,16 @@ export default function SearchPage() {
   const hasActiveFilters = !!(query || typeFilter || tagFilter)
 
   const isSearchSaved = savedSearches.some(
-    (s) => s.query === query && s.type_filter === typeFilter && s.tag_filter === tagFilter,
+    (s) => {
+      const filters = parseSavedFilters(s.filters)
+      return s.query === query && filters.type_filter === typeFilter && filters.tag_filter === tagFilter
+    },
   )
 
   async function handleSaveSearch() {
     if (!hasActiveFilters || isSearchSaved) return
     const label = query || [typeFilter, tagFilter].filter(Boolean).join(', ') || 'Search'
-    const search = await createSavedSearch({
-      user_id: userId,
-      label,
-      query,
+    const search = await createSavedSearch(userId, label, query, {
       type_filter: typeFilter,
       tag_filter: tagFilter,
     })
@@ -179,11 +195,14 @@ export default function SearchPage() {
               {savedSearches.map((s) => (
                 <div key={s.id} className="group flex items-center gap-1 rounded-full border border-border/60 bg-surface-2 px-3 py-1.5">
                   <button
-                    onClick={() => applySearch(s.query, s.type_filter as NoteType | null, s.tag_filter)}
+                    onClick={() => {
+                      const filters = parseSavedFilters(s.filters)
+                      applySearch(s.query, filters.type_filter as NoteType | null, filters.tag_filter)
+                    }}
                     className="flex items-center gap-1.5 text-xs font-medium text-foreground"
                   >
                     <Bookmark className="h-3 w-3 text-primary" />
-                    {s.label}
+                    {s.name}
                   </button>
                   <button
                     onClick={() => handleDeleteSaved(s.id)}

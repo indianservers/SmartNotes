@@ -212,6 +212,16 @@ export async function getAttachmentsByNote(noteId: string): Promise<LocalAttachm
   return db.getAllFromIndex('local_attachments', 'by_note', noteId)
 }
 
+export async function getAttachmentsByUser(userId: string): Promise<LocalAttachment[]> {
+  const db = await getDB()
+  return db.getAllFromIndex('local_attachments', 'by_user', userId)
+}
+
+export async function getAttachment(id: string): Promise<LocalAttachment | undefined> {
+  const db = await getDB()
+  return db.get('local_attachments', id)
+}
+
 export async function deleteAttachment(id: string): Promise<void> {
   const db = await getDB()
   await db.delete('local_attachments', id)

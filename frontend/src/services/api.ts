@@ -71,6 +71,9 @@ export const authApi = {
   login: (data: { email: string; password: string }) =>
     api.post('/auth/login', data),
 
+  google: (data: { id_token: string; encrypted_master_key?: string; kdf_salt?: string; recovery_bundle?: string }) =>
+    api.post('/auth/google', data),
+
   refresh: (refresh_token: string) =>
     api.post('/auth/refresh', { refresh_token }),
 
@@ -95,6 +98,9 @@ export const authApi = {
   getSessions: () => api.get('/auth/sessions'),
 
   revokeSession: (session_id: string) => api.delete(`/auth/sessions/${session_id}`),
+
+  connectGoogleDrive: (data: { access_token: string; expires_in?: number; scope: string }) =>
+    api.post('/auth/google-drive/connect', data),
 }
 
 // ── Sync endpoints ────────────────────────────────────────────────────────────
@@ -104,4 +110,11 @@ export const syncApi = {
   pull: (last_sync_token?: string) => api.get('/sync/pull', { params: { last_sync_token } }),
   resolveConflict: (data: { entity_type: string; entity_id: string; resolution: string; payload?: unknown }) =>
     api.post('/sync/conflict', data),
+}
+
+export const sharingApi = {
+  listNoteShares: (noteId: string) => api.get(`/v1/sharing/notes/${noteId}`),
+  shareNote: (data: { note_id: string; recipient_email: string; permission: 'view' | 'edit' }) =>
+    api.post('/v1/sharing/notes', data),
+  revokeShare: (shareId: string) => api.delete(`/v1/sharing/${shareId}`),
 }

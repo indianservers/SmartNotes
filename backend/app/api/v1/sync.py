@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
 from app.db.database import get_db
-from app.models.models import User, Note, Notebook, Tag, NoteTag, SyncLog
+from app.models.models import User, Note, Notebook, Tag, NoteTag, Attachment, SyncLog
 from app.schemas.sync import SyncPushRequest, SyncPushResponse, SyncPullResponse, ConflictResolutionRequest
 from app.api.v1.deps import get_current_user
 
@@ -19,6 +19,17 @@ def utcnow() -> datetime:
 
 def _encode_token(user_id: str) -> str:
     return f"{user_id}:{datetime.now(timezone.utc).isoformat()}"
+
+
+def _parse_dt(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 @router.post("/push", response_model=SyncPushResponse)
@@ -38,6 +49,8 @@ async def push_sync(
         server_id = await _sync_notebook(db, current_user.id, client_id, operation, payload)
     elif entity_type == "tag":
         server_id = await _sync_tag(db, current_user.id, client_id, operation, payload)
+    elif entity_type == "attachment":
+        server_id = await _sync_attachment(db, current_user.id, client_id, operation, payload)
     else:
         raise HTTPException(status_code=400, detail=f"Unknown entity type: {entity_type}")
 
@@ -80,6 +93,9 @@ async def _sync_note(db: AsyncSession, user_id: str, client_id: str, operation: 
             iv=payload.get("iv"),
             content_hash=payload.get("content_hash"),
             color=payload.get("color"),
+            source_url=payload.get("source_url"),
+            reminder_at=_parse_dt(payload.get("reminder_at")),
+            due_at=_parse_dt(payload.get("due_at")),
             is_pinned=payload.get("is_pinned", False),
             is_favorite=payload.get("is_favorite", False),
             is_archived=payload.get("is_archived", False),
@@ -96,6 +112,9 @@ async def _sync_note(db: AsyncSession, user_id: str, client_id: str, operation: 
         existing.iv = payload.get("iv", existing.iv)
         existing.content_hash = payload.get("content_hash", existing.content_hash)
         existing.color = payload.get("color", existing.color)
+        existing.source_url = payload.get("source_url", existing.source_url)
+        existing.reminder_at = _parse_dt(payload.get("reminder_at")) or existing.reminder_at
+        existing.due_at = _parse_dt(payload.get("due_at")) or existing.due_at
         existing.is_pinned = payload.get("is_pinned", existing.is_pinned)
         existing.is_favorite = payload.get("is_favorite", existing.is_favorite)
         existing.is_archived = payload.get("is_archived", existing.is_archived)
@@ -169,6 +188,54 @@ async def _sync_tag(db: AsyncSession, user_id: str, client_id: str, operation: s
     return client_id
 
 
+async def _sync_attachment(db: AsyncSession, user_id: str, client_id: str, operation: str, payload: dict) -> str:
+    existing = await db.scalar(
+        select(Attachment).where(Attachment.client_id == client_id, Attachment.user_id == user_id)
+    )
+
+    if operation == "delete":
+        if existing:
+            existing.is_deleted = True
+            existing.sync_version += 1
+        return existing.id if existing else client_id
+
+    if operation == "create" or (operation == "update" and not existing):
+        att = Attachment(
+            id=str(uuid.uuid4()),
+            client_id=client_id,
+            note_id=payload.get("note_id"),
+            user_id=user_id,
+            encrypted_file_name=payload.get("encrypted_file_name"),
+            encrypted_data=payload.get("encrypted_data"),
+            encrypted_search_text=payload.get("encrypted_search_text"),
+            mime_type=payload.get("mime_type"),
+            file_size=payload.get("file_size"),
+            encrypted_file_key=payload.get("encrypted_file_key"),
+            encryption_algorithm=payload.get("encryption_algorithm", "AES-GCM"),
+            iv=payload.get("iv"),
+            content_hash=payload.get("content_hash"),
+            storage_provider=payload.get("storage_provider", "indexeddb"),
+            sync_version=1,
+        )
+        db.add(att)
+        await db.flush()
+        return att.id
+
+    if operation == "update" and existing:
+        existing.encrypted_file_name = payload.get("encrypted_file_name", existing.encrypted_file_name)
+        existing.encrypted_data = payload.get("encrypted_data", existing.encrypted_data)
+        existing.encrypted_search_text = payload.get("encrypted_search_text", existing.encrypted_search_text)
+        existing.mime_type = payload.get("mime_type", existing.mime_type)
+        existing.file_size = payload.get("file_size", existing.file_size)
+        existing.iv = payload.get("iv", existing.iv)
+        existing.content_hash = payload.get("content_hash", existing.content_hash)
+        existing.is_deleted = payload.get("is_deleted", existing.is_deleted)
+        existing.sync_version += 1
+        return existing.id
+
+    return client_id
+
+
 @router.get("/pull", response_model=SyncPullResponse)
 async def pull_sync(
     last_sync_token: Optional[str] = None,
@@ -186,15 +253,18 @@ async def pull_sync(
     note_query = select(Note).where(Note.user_id == current_user.id)
     nb_query = select(Notebook).where(Notebook.user_id == current_user.id)
     tag_query = select(Tag).where(Tag.user_id == current_user.id)
+    attachment_query = select(Attachment).where(Attachment.user_id == current_user.id)
 
     if since:
         note_query = note_query.where(Note.updated_at > since)
         nb_query = nb_query.where(Notebook.updated_at > since)
         tag_query = tag_query.where(Tag.updated_at > since)
+        attachment_query = attachment_query.where(Attachment.updated_at > since)
 
     notes = (await db.scalars(note_query)).all()
     notebooks = (await db.scalars(nb_query)).all()
     tags = (await db.scalars(tag_query)).all()
+    attachments = (await db.scalars(attachment_query)).all()
 
     def note_to_dict(n: Note) -> dict:
         return {
@@ -208,6 +278,9 @@ async def pull_sync(
             "iv": n.iv,
             "content_hash": n.content_hash,
             "color": n.color,
+            "source_url": n.source_url,
+            "reminder_at": n.reminder_at.isoformat() if n.reminder_at else None,
+            "due_at": n.due_at.isoformat() if n.due_at else None,
             "is_pinned": n.is_pinned,
             "is_favorite": n.is_favorite,
             "is_archived": n.is_archived,
@@ -237,10 +310,33 @@ async def pull_sync(
             "sync_version": t.sync_version,
         }
 
+    def attachment_to_dict(a: Attachment) -> dict:
+        return {
+            "id": a.id,
+            "client_id": a.client_id,
+            "note_id": a.note_id,
+            "user_id": a.user_id,
+            "encrypted_file_name": a.encrypted_file_name,
+            "encrypted_data": a.encrypted_data,
+            "encrypted_search_text": a.encrypted_search_text,
+            "mime_type": a.mime_type,
+            "file_size": a.file_size,
+            "encrypted_file_key": a.encrypted_file_key,
+            "encryption_algorithm": a.encryption_algorithm,
+            "iv": a.iv,
+            "content_hash": a.content_hash,
+            "storage_provider": a.storage_provider,
+            "is_deleted": a.is_deleted,
+            "sync_version": a.sync_version,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+        }
+
     return SyncPullResponse(
         notes=[note_to_dict(n) for n in notes],
         notebooks=[nb_to_dict(nb) for nb in notebooks],
         tags=[tag_to_dict(t) for t in tags],
+        attachments=[attachment_to_dict(a) for a in attachments],
         sync_token=_encode_token(current_user.id),
     )
 
@@ -251,4 +347,57 @@ async def resolve_conflict(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return {"detail": "Conflict resolved", "resolution": body.resolution}
+    if body.entity_type != "note":
+        return {"detail": "Conflict resolution recorded", "resolution": body.resolution}
+
+    note = await db.scalar(select(Note).where(Note.id == body.entity_id, Note.user_id == current_user.id))
+    if not note:
+        note = await db.scalar(select(Note).where(Note.client_id == body.entity_id, Note.user_id == current_user.id))
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    if body.resolution == "keep_server":
+        return {"detail": "Server version kept", "resolution": body.resolution, "server_id": note.id}
+
+    payload = body.payload or {}
+    if body.resolution == "keep_local":
+        await _apply_note_payload(note, payload)
+        note.sync_version += 1
+        await db.commit()
+        return {"detail": "Local version applied", "resolution": body.resolution, "server_id": note.id}
+
+    if body.resolution == "keep_both":
+        clone = Note(
+            id=str(uuid.uuid4()),
+            client_id=payload.get("client_id") or str(uuid.uuid4()),
+            user_id=current_user.id,
+            notebook_id=payload.get("notebook_id", note.notebook_id),
+            note_type=payload.get("note_type", note.note_type),
+            encrypted_title=payload.get("encrypted_title", note.encrypted_title),
+            encrypted_payload=payload.get("encrypted_payload", note.encrypted_payload),
+            iv=payload.get("iv", note.iv),
+            content_hash=payload.get("content_hash", note.content_hash),
+            color=payload.get("color", note.color),
+            source_url=payload.get("source_url", note.source_url),
+            sync_version=1,
+        )
+        db.add(clone)
+        await db.commit()
+        return {"detail": "Both versions kept", "resolution": body.resolution, "server_id": clone.id}
+
+    raise HTTPException(status_code=400, detail="Unknown conflict resolution")
+
+
+async def _apply_note_payload(note: Note, payload: dict) -> None:
+    note.encrypted_title = payload.get("encrypted_title", note.encrypted_title)
+    note.encrypted_payload = payload.get("encrypted_payload", note.encrypted_payload)
+    note.iv = payload.get("iv", note.iv)
+    note.content_hash = payload.get("content_hash", note.content_hash)
+    note.color = payload.get("color", note.color)
+    note.source_url = payload.get("source_url", note.source_url)
+    note.reminder_at = _parse_dt(payload.get("reminder_at")) or note.reminder_at
+    note.due_at = _parse_dt(payload.get("due_at")) or note.due_at
+    note.is_pinned = payload.get("is_pinned", note.is_pinned)
+    note.is_favorite = payload.get("is_favorite", note.is_favorite)
+    note.is_archived = payload.get("is_archived", note.is_archived)
+    note.notebook_id = payload.get("notebook_id", note.notebook_id)

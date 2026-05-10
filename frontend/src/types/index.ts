@@ -112,6 +112,8 @@ export interface LocalAttachment {
   note_id: string | null
   user_id: string
   encrypted_file_name: string | null
+  encrypted_data?: string | null
+  encrypted_search_text?: string | null
   mime_type: string | null
   file_size: number | null
   local_file_path: string | null
@@ -122,6 +124,7 @@ export interface LocalAttachment {
   storage_provider: string
   upload_status: UploadStatus
   sync_status: SyncStatus
+  sync_version: number
   created_at: string
   updated_at: string
 }
@@ -203,6 +206,8 @@ export interface Attachment {
   file_name: string | null
   mime_type: string | null
   file_size: number | null
+  object_url?: string | null
+  search_text?: string | null
   local_file_path: string | null
   upload_status: UploadStatus
   created_at: string
@@ -239,6 +244,26 @@ export interface AuthResponse {
   tokens: AuthTokens
   encrypted_master_key: string
   recovery_key?: string
+}
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: { client_id: string; callback: (response: { credential: string }) => void; scope?: string }) => void
+          prompt: () => void
+        }
+        oauth2: {
+          initTokenClient: (config: {
+            client_id: string
+            scope: string
+            callback: (response: { access_token?: string; expires_in?: number; scope?: string; error?: string }) => void
+          }) => { requestAccessToken: () => void }
+        }
+      }
+    }
+  }
 }
 
 // Checklist item

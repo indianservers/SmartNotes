@@ -14,8 +14,11 @@ class Settings(BaseSettings):
     SYNC_DATABASE_URL: str = "mysql+pymysql://root:123456@localhost:3306/smart_notes"
 
     FRONTEND_URL: str = "http://localhost:5173"
+    GOOGLE_CLIENT_ID: str = ""
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:5173",
+        "http://localhost:6565",
+        "http://127.0.0.1:6565",
         "http://localhost:4173",
         "capacitor://localhost",
         "ionic://localhost",

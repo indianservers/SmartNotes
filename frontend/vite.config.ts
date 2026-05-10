@@ -21,6 +21,16 @@ export default defineConfig({
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        share_target: {
+          action: '/clip',
+          method: 'GET',
+          enctype: 'application/x-www-form-urlencoded',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+          },
+        },
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },

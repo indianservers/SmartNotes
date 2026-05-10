@@ -89,7 +89,11 @@ export function useFilteredNotes() {
       notes = notes.filter(
         (n) =>
           n.title.toLowerCase().includes(q) ||
-          n.content.toLowerCase().includes(q),
+          n.content.toLowerCase().includes(q) ||
+          (n.attachments ?? []).some((att) =>
+            (att.file_name ?? '').toLowerCase().includes(q) ||
+            (att.search_text ?? '').toLowerCase().includes(q),
+          ),
       )
     }
     if (f.note_type) notes = notes.filter((n) => n.note_type === f.note_type)

@@ -7,18 +7,26 @@ const PBKDF2_HASH = 'SHA-256'
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function bufToB64(buf: ArrayBuffer): string {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+  const bytes = new Uint8Array(buf)
+  const chunkSize = 0x8000
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+  }
+  return btoa(binary)
 }
 
 function b64ToBuf(b64: string): ArrayBuffer {
   const bin = atob(b64)
   const buf = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i)
-  return buf.buffer
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
 }
 
-function randomBytes(n: number): Uint8Array {
-  return crypto.getRandomValues(new Uint8Array(n))
+function randomBytes(n: number): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(new ArrayBuffer(n))
+  crypto.getRandomValues(bytes)
+  return bytes
 }
 
 // ── Key derivation ────────────────────────────────────────────────────────────
@@ -28,6 +36,7 @@ export async function deriveKeyFromPassword(
   salt: Uint8Array,
 ): Promise<CryptoKey> {
   const enc = new TextEncoder()
+  const saltBuffer = salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     enc.encode(password),
@@ -38,7 +47,7 @@ export async function deriveKeyFromPassword(
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt,
+      salt: saltBuffer,
       iterations: PBKDF2_ITERATIONS,
       hash: PBKDF2_HASH,
     },
@@ -94,6 +103,23 @@ export async function encryptString(
   }
 }
 
+export async function encryptBuffer(
+  data: ArrayBuffer,
+  key: CryptoKey,
+): Promise<EncryptedPayload> {
+  const iv = randomBytes(IV_LENGTH)
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: ALGORITHM, iv },
+    key,
+    data,
+  )
+  return {
+    ciphertext: bufToB64(ciphertext),
+    iv: bufToB64(iv.buffer),
+    algorithm: ALGORITHM,
+  }
+}
+
 export async function decryptString(
   payload: EncryptedPayload,
   key: CryptoKey,
@@ -105,6 +131,17 @@ export async function decryptString(
     b64ToBuf(payload.ciphertext),
   )
   return dec.decode(plaintext)
+}
+
+export async function decryptBuffer(
+  payload: EncryptedPayload,
+  key: CryptoKey,
+): Promise<ArrayBuffer> {
+  return crypto.subtle.decrypt(
+    { name: ALGORITHM, iv: b64ToBuf(payload.iv) },
+    key,
+    b64ToBuf(payload.ciphertext),
+  )
 }
 
 // ── Master key wrap/unwrap ────────────────────────────────────────────────────

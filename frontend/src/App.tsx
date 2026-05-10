@@ -25,6 +25,8 @@ import TagsPage from '@/pages/tags/TagsPage'
 import SearchPage from '@/pages/search/SearchPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import TasksPage from '@/pages/tasks/TasksPage'
+import ClipPage from '@/pages/clip/ClipPage'
+import CalendarPage from '@/pages/calendar/CalendarPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -77,6 +79,8 @@ export default function App() {
             <Route path="/tags" element={<TagsPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/clip" element={<ClipPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
 

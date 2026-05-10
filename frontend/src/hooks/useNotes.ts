@@ -15,6 +15,8 @@ import {
   deleteNotebook,
   createTag,
   getAllTags as getTagsFromVault,
+  applyPulledSync,
+  markEntitySynced,
 } from '@/db/vault'
 import { syncApi } from '@/services/api'
 import { getPendingSyncQueue, updateSyncQueueItem, deleteSyncQueueItem } from '@/db/indexeddb'
@@ -56,7 +58,7 @@ export function useNotes() {
   }, [setNotes, setNotebooks, setTags, setLoading])
 
   const handleCreateNote = useCallback(
-    async (input: { title: string; content: string; note_type?: NoteType; notebook_id?: string | null; color?: string | null }) => {
+    async (input: { title: string; content: string; note_type?: NoteType; notebook_id?: string | null; color?: string | null; source_url?: string | null; due_at?: string | null; reminder_at?: string | null }) => {
       const note = await createNote(input)
       addNote(note)
       return note
@@ -127,10 +129,6 @@ export function useNotes() {
     try {
       const queue = await getPendingSyncQueue(user.id)
       setPendingCount(queue.length)
-      if (queue.length === 0) {
-        setSyncState('idle')
-        return
-      }
 
       for (const item of queue) {
         try {
@@ -139,7 +137,7 @@ export function useNotes() {
             entity_id: item.entity_id,
             operation: item.operation,
             payload: item.payload ? JSON.parse(item.payload) : null,
-          })
+          }).then((resp) => markEntitySynced(item.entity_type, item.entity_id, resp.data?.server_id, resp.data?.sync_version))
           await deleteSyncQueueItem(item.id)
         } catch (e) {
           await updateSyncQueueItem({
@@ -154,6 +152,11 @@ export function useNotes() {
 
       const remaining = await getPendingSyncQueue(user.id)
       setPendingCount(remaining.length)
+      const lastToken = localStorage.getItem('last_sync_token') ?? undefined
+      const pulled = await syncApi.pull(lastToken)
+      await applyPulledSync(pulled.data)
+      if (pulled.data?.sync_token) localStorage.setItem('last_sync_token', pulled.data.sync_token)
+      await refreshAll()
       setSyncState('idle')
     } catch {
       setSyncState('error')

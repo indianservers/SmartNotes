@@ -27,6 +27,8 @@ dist/
 # Vite/Build
 frontend/dist/
 frontend/.vite/
+frontend/dev-dist/
+AndroidApp/gradle/gradle-daemon-jvm.properties
 
 # IDE
 .vscode/

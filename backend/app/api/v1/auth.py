@@ -4,13 +4,16 @@ import hashlib
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 
 from app.db.database import get_db
-from app.models.models import User, UserSession, PasswordResetToken
+from app.models.models import User, UserSession, PasswordResetToken, GoogleDriveConnection
 from app.schemas.auth import (
     SignupRequest, LoginRequest, RefreshRequest,
     ForgotPasswordRequest, ResetPasswordRequest,
     ChangePasswordRequest, TokenResponse, UserResponse, AuthResponse, UpdateMasterKeyRequest,
+    GoogleAuthRequest, GoogleDriveConnectRequest,
 )
 from app.core.security import (
     hash_password, verify_password,
@@ -22,6 +25,7 @@ from app.services.email import send_password_reset_email
 from app.api.v1.deps import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+DRIVE_APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata"
 
 
 def _hash_token(token: str) -> str:
@@ -50,6 +54,61 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)):
         is_active=True,
         is_verified=True,
         last_login_at=datetime.now(timezone.utc),
+    )
+
+
+@router.post("/google", response_model=AuthResponse)
+async def google_auth(body: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google Sign-In is not configured")
+    try:
+        claims = google_id_token.verify_oauth2_token(
+            body.id_token,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID,
+        )
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Google ID token")
+
+    if claims.get("iss") not in {"accounts.google.com", "https://accounts.google.com"}:
+        raise HTTPException(status_code=401, detail="Invalid Google token issuer")
+    if not claims.get("email") or not claims.get("email_verified"):
+        raise HTTPException(status_code=401, detail="Google email is not verified")
+
+    email = str(claims["email"]).lower()
+    user = await db.scalar(select(User).where(User.email == email))
+    if not user:
+        if not body.encrypted_master_key or not body.kdf_salt:
+            raise HTTPException(status_code=409, detail="New Google users must create an encrypted vault")
+        user = User(
+            full_name=claims.get("name"),
+            email=email,
+            hashed_password=hash_password(f"google:{claims.get('sub')}:{settings.SECRET_KEY}"),
+            encrypted_master_key=body.encrypted_master_key,
+            kdf_salt=body.kdf_salt,
+            recovery_bundle=body.recovery_bundle,
+            is_active=True,
+            is_verified=True,
+            last_login_at=datetime.now(timezone.utc),
+        )
+        db.add(user)
+        await db.flush()
+    elif not user.is_active:
+        raise HTTPException(status_code=403, detail="Account disabled")
+
+    access, refresh = _make_tokens(user.id)
+    db.add(UserSession(
+        user_id=user.id,
+        refresh_token_hash=_hash_token(refresh),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+    ))
+    await db.execute(update(User).where(User.id == user.id).values(last_login_at=datetime.now(timezone.utc)))
+    await db.commit()
+
+    return AuthResponse(
+        user=UserResponse(id=user.id, email=user.email, full_name=user.full_name, is_active=user.is_active),
+        tokens=TokenResponse(access_token=access, refresh_token=refresh),
+        encrypted_master_key=user.encrypted_master_key or "",
     )
     db.add(user)
     await db.flush()
@@ -208,6 +267,34 @@ async def change_password(
     current_user.hashed_password = hash_password(body.new_password)
     await db.commit()
     return {"detail": "Password changed successfully"}
+
+
+@router.post("/google-drive/connect")
+async def connect_google_drive(
+    body: GoogleDriveConnectRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    scopes = set(body.scope.split())
+    if scopes != {DRIVE_APPDATA_SCOPE}:
+        raise HTTPException(status_code=400, detail="Only drive.appdata scope is allowed for backup sync")
+    expires_at = None
+    if body.expires_in:
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=body.expires_in)
+    existing = await db.scalar(select(GoogleDriveConnection).where(GoogleDriveConnection.user_id == current_user.id))
+    if existing:
+        existing.access_token = body.access_token
+        existing.token_expires_at = expires_at
+        existing.is_active = True
+    else:
+        db.add(GoogleDriveConnection(
+            user_id=current_user.id,
+            access_token=body.access_token,
+            token_expires_at=expires_at,
+            is_active=True,
+        ))
+    await db.commit()
+    return {"detail": "Google Drive appDataFolder connected"}
 
 
 @router.get("/me", response_model=UserResponse)

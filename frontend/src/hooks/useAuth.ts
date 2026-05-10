@@ -8,6 +8,7 @@ import { generateMasterKey, wrapMasterKey, unwrapMasterKey, generateRecoveryKey 
 import { setSessionKey, clearSessionKey, getAllNotes, getAllNotebooks, getAllTags } from '@/db/vault'
 import { saveUser, getUserByEmail } from '@/db/indexeddb'
 import type { SignupRequest, LoginRequest } from '@/types'
+import { requestGoogleIdToken } from '@/lib/googleIdentity'
 
 export function useAuth() {
   const navigate = useNavigate()
@@ -123,6 +124,64 @@ export function useAuth() {
     }
   }
 
+  async function googleLogin(): Promise<{ recovery_key?: string } | null> {
+    setLocalLoading(true)
+    setError(null)
+    try {
+      const idToken = await requestGoogleIdToken()
+      const deviceSecretKey = 'google_vault_secret'
+      let deviceSecret = localStorage.getItem(deviceSecretKey)
+      let recoveryKey: string | undefined
+      let payload: { id_token: string; encrypted_master_key?: string; kdf_salt?: string; recovery_bundle?: string } = { id_token: idToken }
+
+      if (!deviceSecret) {
+        deviceSecret = crypto.randomUUID() + crypto.randomUUID()
+        const masterKey = await generateMasterKey()
+        const wrapped = await wrapMasterKey(masterKey, deviceSecret)
+        const recovery = await generateRecoveryKey(masterKey)
+        payload = {
+          id_token: idToken,
+          encrypted_master_key: JSON.stringify(wrapped),
+          kdf_salt: wrapped.salt,
+          recovery_bundle: JSON.stringify(recovery.encrypted_with_recovery),
+        }
+        recoveryKey = recovery.recovery_key
+      }
+
+      const resp = await authApi.google(payload)
+      const { user, tokens, encrypted_master_key } = resp.data
+      if (!encrypted_master_key) throw new Error('No encrypted vault returned')
+      const wrapped = JSON.parse(encrypted_master_key)
+      const masterKey = await unwrapMasterKey(wrapped, deviceSecret)
+      localStorage.setItem(deviceSecretKey, deviceSecret)
+      localStorage.setItem('access_token', tokens.access_token)
+      localStorage.setItem('refresh_token', tokens.refresh_token)
+      await saveUser({
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        encrypted_master_key,
+        kdf_salt: wrapped.salt,
+        kdf_algorithm: 'PBKDF2',
+        kdf_iterations: wrapped.kdf_iterations,
+        last_login_at: new Date().toISOString(),
+        is_active: 1,
+      })
+      setSessionKey(masterKey, user.id)
+      setUser(user)
+      const [notes, notebooks, tags] = await Promise.all([getAllNotes(), getAllNotebooks(), getAllTags()])
+      setNotes(notes); setNotebooks(notebooks); setTags(tags)
+      navigate('/dashboard')
+      return recoveryKey ? { recovery_key: recoveryKey } : {}
+    } catch (e: unknown) {
+      const err = e as { message?: string; response?: { data?: { detail?: string } } }
+      setError(err.response?.data?.detail ?? err.message ?? 'Google sign-in failed')
+      return null
+    } finally {
+      setLocalLoading(false)
+    }
+  }
+
   async function offlineLogin(email: string, password: string): Promise<void> {
     const localUser = await getUserByEmail(email)
     if (!localUser || !localUser.encrypted_master_key) {
@@ -163,5 +222,5 @@ export function useAuth() {
     navigate('/login')
   }
 
-  return { signup, login, logout, loading, error, setError }
+  return { signup, login, googleLogin, logout, loading, error, setError }
 }

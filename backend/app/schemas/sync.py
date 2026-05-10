@@ -20,6 +20,9 @@ class SyncPullResponse(BaseModel):
     notebooks: list[dict] = []
     tags: list[dict] = []
     note_tags: list[dict] = []
+    attachments: list[dict] = []
+    tasks: list[dict] = []
+    calendar_events: list[dict] = []
     sync_token: str
     conflicts: list[dict] = []
 

@@ -97,26 +97,27 @@ export const SlashCommandsList = forwardRef<
   SuggestionProps & { items: SlashCommand[] }
 >((props, ref) => {
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const items = props.items as SlashCommand[]
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }: SuggestionKeyDownProps) => {
-      if (event.key === 'ArrowUp') { setSelectedIndex((i) => (i - 1 + props.items.length) % props.items.length); return true }
-      if (event.key === 'ArrowDown') { setSelectedIndex((i) => (i + 1) % props.items.length); return true }
+      if (event.key === 'ArrowUp') { setSelectedIndex((i) => (i - 1 + items.length) % items.length); return true }
+      if (event.key === 'ArrowDown') { setSelectedIndex((i) => (i + 1) % items.length); return true }
       if (event.key === 'Enter') { selectItem(selectedIndex); return true }
       return false
     },
   }))
 
-  useEffect(() => setSelectedIndex(0), [props.items])
+  useEffect(() => setSelectedIndex(0), [items])
 
   function selectItem(index: number) {
-    const item = props.items[index]
+    const item = items[index]
     if (item) props.command(item)
   }
 
-  if (!props.items.length) return null
+  if (!items.length) return null
 
-  const grouped = props.items.reduce((acc, item) => {
+  const grouped = items.reduce((acc, item) => {
     if (!acc[item.category]) acc[item.category] = []
     acc[item.category].push(item)
     return acc

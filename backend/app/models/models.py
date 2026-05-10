@@ -173,6 +173,8 @@ class Attachment(Base):
     note_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("notes.id", ondelete="CASCADE"))
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     encrypted_file_name: Mapped[Optional[str]] = mapped_column(Text)
+    encrypted_data: Mapped[Optional[str]] = mapped_column(Text)
+    encrypted_search_text: Mapped[Optional[str]] = mapped_column(Text)
     mime_type: Mapped[Optional[str]] = mapped_column(String(100))
     file_size: Mapped[Optional[int]] = mapped_column(Integer)
     storage_path: Mapped[Optional[str]] = mapped_column(Text)
@@ -181,6 +183,8 @@ class Attachment(Base):
     iv: Mapped[Optional[str]] = mapped_column(String(255))
     content_hash: Mapped[Optional[str]] = mapped_column(String(255))
     storage_provider: Mapped[str] = mapped_column(String(20), default="local")
+    sync_version: Mapped[int] = mapped_column(Integer, default=1)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -244,3 +248,37 @@ class SavedSearch(Base):
     type_filter: Mapped[Optional[str]] = mapped_column(String(30))
     tag_filter: Mapped[Optional[str]] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CalendarEvent(Base):
+    __tablename__ = "calendar_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    client_id: Mapped[Optional[str]] = mapped_column(String(36), index=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    note_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("notes.id", ondelete="SET NULL"), index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    location: Mapped[Optional[str]] = mapped_column(String(255))
+    attendees: Mapped[Optional[str]] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(String(30), default="manual")
+    external_id: Mapped[Optional[str]] = mapped_column(String(255))
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class SharedNote(Base):
+    __tablename__ = "shared_notes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    note_id: Mapped[str] = mapped_column(String(36), ForeignKey("notes.id", ondelete="CASCADE"), nullable=False, index=True)
+    owner_user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    recipient_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    permission: Mapped[str] = mapped_column(String(20), default="view")
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    __table_args__ = (UniqueConstraint("note_id", "recipient_email", name="uq_shared_note_recipient"),)

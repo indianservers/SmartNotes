@@ -2,7 +2,7 @@ import { Extension, type Editor } from '@tiptap/core'
 import Suggestion, { type SuggestionProps, type SuggestionKeyDownProps } from '@tiptap/suggestion'
 import { ReactRenderer } from '@tiptap/react'
 import tippy, { type Instance } from 'tippy.js'
-import { getAllNotes } from '@/db/indexeddb'
+import { getAllNotes } from '@/db/vault'
 import { useAuthStore } from '@/stores/authStore'
 
 export interface NoteLink {

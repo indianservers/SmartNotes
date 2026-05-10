@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function LoginPage() {
-  const { login, loading, error, setError } = useAuth()
+  const { login, googleLogin, loading, error, setError } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
@@ -90,6 +90,16 @@ export default function LoginPage() {
             Sign In
           </Button>
         </form>
+
+        <div className="my-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">or</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <Button type="button" variant="outline" size="lg" className="w-full" loading={loading} onClick={() => googleLogin()}>
+          Sign in with Google
+        </Button>
 
         <p className="mt-5 text-center text-sm text-muted-foreground">
           Don't have an account?{' '}

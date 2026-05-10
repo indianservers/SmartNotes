@@ -4,6 +4,7 @@ import {
   ArrowLeft, MoreVertical, Pin, Star, Archive, Trash2,
   Palette, Save, Check, Clock, LayoutTemplate, Download,
   FileJson, FileText, FileType, FileCode,
+  Share2,
 } from 'lucide-react'
 import { useNotes } from '@/hooks/useNotes'
 import { useNotesStore } from '@/stores/notesStore'
@@ -11,8 +12,11 @@ import { RichTextEditor } from '@/components/editor/RichTextEditor'
 import { ChecklistEditor } from '@/components/editor/ChecklistEditor'
 import { PDFViewer } from '@/components/editor/PDFViewer'
 import { DrawingCanvas } from '@/components/editor/DrawingCanvas'
+import { AttachmentPanel } from '@/components/editor/AttachmentPanel'
 import { VersionHistory } from '@/components/notes/VersionHistory'
 import { TemplatesGallery } from '@/components/notes/TemplatesGallery'
+import { NoteTasksPanel } from '@/components/notes/NoteTasksPanel'
+import { ShareNoteDialog } from '@/components/notes/ShareNoteDialog'
 import type { NoteTemplate } from '@/components/notes/TemplatesGallery'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,7 +28,6 @@ import type { Note, NoteType } from '@/types'
 import { toast } from 'sonner'
 import { exportAsJSON, exportAsHTML, exportAsPDF, exportAsMarkdown } from '@/lib/exportNote'
 import { createNoteVersion } from '@/db/tasksdb'
-import { useAuthStore } from '@/stores/authStore'
 
 const AUTO_SAVE_MS = 1500
 
@@ -38,8 +41,6 @@ export default function NoteEditorPage() {
   const { createNote, updateNote, deleteNote, pinNote, favoriteNote, archiveNote, getNoteById } = useNotes()
   const { notebooks, tags } = useNotesStore()
 
-  const userId = useAuthStore((s) => s.user?.id ?? '')
-
   const [note, setNote] = useState<Note | null>(null)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -50,6 +51,7 @@ export default function NoteEditorPage() {
   const [currentNoteId, setCurrentNoteId] = useState<string | null>(null)
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showShare, setShowShare] = useState(false)
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDirty = useRef(false)
@@ -77,8 +79,7 @@ export default function NoteEditorPage() {
       if (currentNoteId) {
         await updateNote(currentNoteId, { title, content, color })
         // Save version snapshot
-        const wordCount = content.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length
-        await createNoteVersion({ note_id: currentNoteId, user_id: userId, title, content, word_count: wordCount })
+        await createNoteVersion(currentNoteId, title, content)
       } else {
         const newNote = await createNote({ title, content, note_type: noteType, color })
         setCurrentNoteId(newNote.id)
@@ -237,6 +238,12 @@ export default function NoteEditorPage() {
             </Button>
           )}
 
+          {currentNoteId && (
+            <Button variant="ghost" size="icon-sm" onClick={() => setShowShare(true)} title="Share">
+              <Share2 className="h-4 w-4" />
+            </Button>
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon-sm">
@@ -325,6 +332,13 @@ export default function NoteEditorPage() {
         {(noteType === 'file' || noteType === 'pdf') && (
           <FileNoteSection />
         )}
+
+        <AttachmentPanel
+          noteId={currentNoteId}
+          onChanged={(attachments) => setNote((n) => n ? { ...n, attachments } : n)}
+        />
+
+        <NoteTasksPanel noteId={currentNoteId} />
       </div>
 
       {/* Version History dialog */}
@@ -343,6 +357,14 @@ export default function NoteEditorPage() {
         onClose={() => setShowTemplates(false)}
         onSelect={handleTemplateSelect}
       />
+
+      {currentNoteId && (
+        <ShareNoteDialog
+          noteId={currentNoteId}
+          open={showShare}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Search, BookOpen, CheckSquare, Settings } from 'lucide-react'
+import { Home, Search, BookOpen, CheckSquare, Settings, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -7,6 +7,7 @@ const NAV = [
   { to: '/search', icon: Search, label: 'Search' },
   { to: '/notebooks', icon: BookOpen, label: 'Notebooks' },
   { to: '/tasks', icon: CheckSquare, label: 'Tasks' },
+  { to: '/calendar', icon: Calendar, label: 'Calendar' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

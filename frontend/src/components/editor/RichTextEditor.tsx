@@ -10,7 +10,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block'
 import CharacterCount from '@tiptap/extension-character-count'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
-import Table from '@tiptap/extension-table'
+import { Table } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
@@ -68,7 +68,7 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start writing
   useEffect(() => {
     if (!editor) return
     const current = editor.getHTML()
-    if (current !== content) editor.commands.setContent(content, false)
+    if (current !== content) editor.commands.setContent(content, { emitUpdate: false })
   }, [content, editor])
 
   // Handle image paste

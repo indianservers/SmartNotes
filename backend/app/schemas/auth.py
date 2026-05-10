@@ -23,6 +23,19 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+    encrypted_master_key: Optional[str] = None
+    kdf_salt: Optional[str] = None
+    recovery_bundle: Optional[str] = None
+
+
+class GoogleDriveConnectRequest(BaseModel):
+    access_token: str
+    expires_in: Optional[int] = None
+    scope: str
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 

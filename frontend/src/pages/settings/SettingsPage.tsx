@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   User, Lock, LogOut, RefreshCw, Smartphone, Shield,
   ChevronRight, Eye, EyeOff, Key, Cloud, FileJson,
-  Sun, Moon, Monitor, Upload,
+  Sun, Moon, Monitor, Upload, Globe,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useNotes } from '@/hooks/useNotes'
@@ -20,6 +20,9 @@ import { toast } from 'sonner'
 import { exportAsJSON } from '@/lib/exportNote'
 import { importFromJSON, importFromMarkdown } from '@/lib/importNote'
 import { useNotes as useNotesHook } from '@/hooks/useNotes'
+import { requestDriveAppDataToken } from '@/lib/googleIdentity'
+import { uploadEncryptedBackupToAppData } from '@/lib/googleDriveBackup'
+import { getEncryptedBackupPayload } from '@/db/vault'
 
 export default function SettingsPage() {
   const navigate = useNavigate()
@@ -142,9 +145,18 @@ export default function SettingsPage() {
           <div className="divide-y divide-border/40">
             <SettingsRow
               icon={<Cloud className="h-4 w-4" />}
-              label="Google Drive Backup"
-              description="Coming soon — encrypted backup"
-              badge="Soon"
+              label="Connect Google Drive for Secure Backup & Sync"
+              description="Uses only the private Google Drive appDataFolder"
+              onClick={async () => {
+                try {
+                  const token = await requestDriveAppDataToken()
+                  await authApi.connectGoogleDrive(token)
+                  await uploadEncryptedBackupToAppData(token.access_token, await getEncryptedBackupPayload())
+                  toast.success('Google Drive secure backup connected')
+                } catch (e: unknown) {
+                  toast.error((e as Error).message || 'Google Drive connection failed')
+                }
+              }}
             />
             <SettingsRow
               icon={<FileJson className="h-4 w-4" />}
@@ -162,6 +174,17 @@ export default function SettingsPage() {
               label="Import Notes"
               description="Import from JSON or Markdown files"
               onClick={() => importRef.current?.click()}
+            />
+            <SettingsRow
+              icon={<Globe className="h-4 w-4" />}
+              label="Copy Web Clipper Bookmarklet"
+              description="Clip the current page into Smart Notes"
+              onClick={async () => {
+                const origin = window.location.origin
+                const bookmarklet = `javascript:(()=>{const s=window.getSelection().toString();const q=new URLSearchParams({title:document.title,url:location.href,text:s||document.querySelector('meta[name="description"]')?.content||''});open('${origin}/clip?'+q.toString(),'_blank')})()`
+                await navigator.clipboard.writeText(bookmarklet)
+                toast.success('Bookmarklet copied')
+              }}
             />
           </div>
         </section>
@@ -301,3 +324,4 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
     </Dialog>
   )
 }
+
