@@ -24,7 +24,7 @@ import {
   Table as TableIcon, Eraser, Pilcrow,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface Props {
   content: string
@@ -34,7 +34,8 @@ interface Props {
   className?: string
 }
 
-export function RichTextEditor({ content, onChange, placeholder = 'Start writing…', readOnly = false, className }: Props) {
+export function RichTextEditor({ content, onChange, placeholder = 'Type / for commands, [[ to link notes', readOnly = false, className }: Props) {
+  const [bubble, setBubble] = useState<{ top: number; left: number } | null>(null)
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -71,6 +72,36 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start writing
     if (current !== content) editor.commands.setContent(content, { emitUpdate: false })
   }, [content, editor])
 
+  useEffect(() => {
+    if (!editor || readOnly) return
+
+    function updateBubble() {
+      const selection = editor.state.selection
+      if (selection.empty) {
+        setBubble(null)
+        return
+      }
+
+      const start = editor.view.coordsAtPos(selection.from)
+      const end = editor.view.coordsAtPos(selection.to)
+      setBubble({
+        top: Math.max(8, Math.min(start.top, end.top) - 44),
+        left: (start.left + end.right) / 2,
+      })
+    }
+
+    function hideBubble() {
+      setBubble(null)
+    }
+
+    editor.on('selectionUpdate', updateBubble)
+    editor.on('blur', hideBubble)
+    return () => {
+      editor.off('selectionUpdate', updateBubble)
+      editor.off('blur', hideBubble)
+    }
+  }, [editor, readOnly])
+
   // Handle image paste
   useEffect(() => {
     if (!editor || readOnly) return
@@ -95,6 +126,22 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start writing
   return (
     <div className={cn('flex flex-col', className)}>
       {!readOnly && editor && <EditorToolbar editor={editor} />}
+      {!readOnly && editor && bubble && (
+        <div
+          className="fixed z-50 flex -translate-x-1/2 items-center gap-0.5 rounded-xl border border-border/70 bg-surface-1 p-1 shadow-xl"
+          style={{ top: bubble.top, left: bubble.left }}
+        >
+          <BubbleButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
+            <Bold className="h-3.5 w-3.5" />
+          </BubbleButton>
+          <BubbleButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="Italic">
+            <Italic className="h-3.5 w-3.5" />
+          </BubbleButton>
+          <BubbleButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} title="Highlight">
+            <Highlighter className="h-3.5 w-3.5" />
+          </BubbleButton>
+        </div>
+      )}
       <EditorContent
         editor={editor}
         className={cn(
@@ -109,13 +156,30 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start writing
           '[&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded-xl',
         )}
       />
-      {editor && (
-        <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-1.5 text-[10px] text-muted-foreground/60">
-          <span>{editor.storage.characterCount?.words() ?? 0} words</span>
-          <span>{editor.storage.characterCount?.characters() ?? 0} chars</span>
-        </div>
-      )}
     </div>
+  )
+}
+
+function BubbleButton({
+  onClick, active, children, title,
+}: {
+  onClick: () => void
+  active?: boolean
+  children: React.ReactNode
+  title: string
+}) {
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => { e.preventDefault(); onClick() }}
+      title={title}
+      className={cn(
+        'flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+        active ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-surface-3 hover:text-foreground',
+      )}
+    >
+      {children}
+    </button>
   )
 }
 

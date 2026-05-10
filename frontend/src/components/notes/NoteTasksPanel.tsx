@@ -73,7 +73,7 @@ export function NoteTasksPanel({ noteId }: Props) {
               <button onClick={() => toggle(task)} className="text-primary">
                 {task.status === 'done' ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
               </button>
-              <span className={cn('min-w-0 flex-1 truncate text-sm', task.status === 'done' && 'text-muted-foreground line-through')}>
+              <span className={cn('min-w-0 flex-1 truncate text-sm transition-all', task.status === 'done' && 'text-muted-foreground line-through opacity-60')}>
                 {task.title}
               </span>
               <button onClick={() => remove(task.id)} className="text-muted-foreground hover:text-destructive">

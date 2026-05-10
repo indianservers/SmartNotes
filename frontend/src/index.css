@@ -192,6 +192,12 @@ ul[data-type="taskList"] li > label input[type="checkbox"] {
   text-align: left;
 }
 
+.prose table tr:first-child td,
+.prose table tr:first-child th {
+  background: var(--color-surface-3);
+  font-weight: 600;
+}
+
 .prose table .selectedCell:after {
   content: '';
   position: absolute;
@@ -252,6 +258,36 @@ a.note-link:hover {
   animation: fade-in 200ms ease-out;
 }
 
+.animate-auth-card {
+  animation: auth-card-in 300ms ease-out both;
+}
+
+.animate-shake {
+  animation: shake-x 420ms ease-in-out;
+}
+
+.animate-save-bounce {
+  animation: save-bounce 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes auth-card-in {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shake-x {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+@keyframes save-bounce {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .dialog-spring {
   transition:
     transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -278,6 +314,15 @@ a.note-link:hover {
 
 [data-sonner-toaster][data-y-position='bottom'] [data-sonner-toast] {
   animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-foreground);
+  box-shadow: 0 0 0 1000px var(--color-surface-2) inset;
+  caret-color: var(--color-foreground);
+  transition: background-color 9999s ease-out;
 }
 
 /* Line clamp */

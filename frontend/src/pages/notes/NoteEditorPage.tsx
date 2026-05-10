@@ -62,6 +62,7 @@ export default function NoteEditorPage() {
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDirty = useRef(false)
+  const titleInputRef = useRef<HTMLInputElement>(null)
 
   // Load existing note
   useEffect(() => {
@@ -79,6 +80,12 @@ export default function NoteEditorPage() {
       })
     }
   }, [id, isNew, getNoteById])
+
+  useEffect(() => {
+    if (!isNew) return
+    const timer = window.setTimeout(() => titleInputRef.current?.focus(), 80)
+    return () => window.clearTimeout(timer)
+  }, [isNew])
 
   const save = useCallback(async () => {
     if (!isDirty.current) return
@@ -231,6 +238,7 @@ export default function NoteEditorPage() {
   const categoryChips = parseCategories(categoriesText)
   const currentNotebook = notebooks.find((notebook) => notebook.id === notebookId)
   const wordCount = content.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(Boolean).length
+  const charCount = content.replace(/<[^>]*>/g, '').length
   const linkedNotes = (content.match(/data-note-id=/g) ?? []).length
 
   return (
@@ -245,10 +253,13 @@ export default function NoteEditorPage() {
           {saving ? (
             <span className="flex items-center gap-1"><div className="h-2.5 w-2.5 animate-spin rounded-full border border-current border-t-transparent" /> Saving…</span>
           ) : saved ? (
-            <span className="flex items-center gap-1 text-green-400"><Check className="h-3 w-3" /> Saved</span>
+            <span className="flex items-center gap-1 text-green-400 animate-save-bounce"><Check className="h-3 w-3" /> Saved</span>
           ) : (
             <span>{NOTE_TYPE_LABELS[noteType] ?? 'Note'}</span>
           )}
+          <span className="ml-2 rounded-full border border-border/50 bg-surface-2 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+            {wordCount}w / {charCount}c
+          </span>
         </div>
 
         <div className="flex items-center gap-1">
@@ -362,12 +373,19 @@ export default function NoteEditorPage() {
         <div className="min-w-0">
         {/* Title */}
         <input
+          ref={titleInputRef}
           type="text"
           value={title}
+          maxLength={120}
           onChange={handleTitleChange}
-          placeholder="Note title…"
+          placeholder="Note title..."
           className="mb-4 w-full bg-transparent text-2xl font-bold text-foreground placeholder:text-muted-foreground/30 outline-none"
         />
+        {title.length > 80 && (
+          <p className="-mt-3 mb-4 text-right font-mono text-[10px] text-muted-foreground/70">
+            {title.length}/120
+          </p>
+        )}
 
         <div className="mb-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <label className="flex items-center gap-2 rounded-xl border border-border/60 bg-surface-2 px-3 py-2 text-sm">
@@ -411,7 +429,7 @@ export default function NoteEditorPage() {
           <RichTextEditor
             content={content}
             onChange={handleContentChange}
-            placeholder={noteType === 'meeting' ? 'Meeting notes…' : 'Start writing…'}
+            placeholder={noteType === 'meeting' ? 'Meeting notes. Type / for commands, [[ to link notes' : 'Type / for commands, [[ to link notes'}
           />
         )}
 
@@ -457,7 +475,7 @@ export default function NoteEditorPage() {
               ['Type', NOTE_TYPE_LABELS[noteType] ?? 'Note'],
               ['Notebook', currentNotebook?.title ?? 'No notebook'],
               ['Words', String(wordCount)],
-              ['Characters', String(content.replace(/<[^>]*>/g, '').length)],
+              ['Characters', String(charCount)],
             ]}
           />
           <InfoPanel

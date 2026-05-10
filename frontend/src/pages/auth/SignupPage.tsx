@@ -44,7 +44,8 @@ export default function SignupPage() {
   if (recoveryKey) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
-        <div className="w-full max-w-sm rounded-2xl border border-amber-700/40 bg-amber-950/20 p-6 shadow-xl">
+        <div className="w-full max-w-sm rounded-2xl border border-amber-700/40 bg-amber-950/20 p-6 shadow-xl animate-auth-card">
+          <SignupStepIndicator step={2} />
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20">
               <ShieldCheck className="h-5 w-5 text-amber-400" />
@@ -103,7 +104,8 @@ export default function SignupPage() {
         </div>
       </div>
 
-      <div className="w-full max-w-sm rounded-2xl border border-border/60 bg-surface-1 p-6 shadow-xl">
+      <div className="w-full max-w-sm rounded-2xl border border-border/60 bg-surface-1 p-6 shadow-xl animate-auth-card">
+        <SignupStepIndicator step={1} />
         <h2 className="mb-1 text-xl font-semibold">Create account</h2>
         <p className="mb-6 text-sm text-muted-foreground">Start your private notes experience</p>
 
@@ -231,4 +233,26 @@ function getPasswordStrength(password: string): { score: number; label: string; 
   const labels = ['Weak', 'Fair', 'Good', 'Strong']
   const colors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500']
   return { score, label: labels[score - 1] ?? '', color: colors[score - 1] ?? 'bg-surface-3' }
+}
+
+function SignupStepIndicator({ step }: { step: 1 | 2 }) {
+  const items = ['Fill form', 'Save key']
+  return (
+    <div className="mb-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+      {items.map((label, index) => {
+        const active = step >= index + 1
+        return (
+          <div key={label} className="contents">
+            <div className="flex items-center gap-2">
+              <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${active ? 'bg-primary text-white' : 'bg-surface-3 text-muted-foreground'}`}>
+                {index + 1}
+              </span>
+              <span className={`text-xs ${active ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
+            </div>
+            {index === 0 && <div className={`h-px w-8 ${step === 2 ? 'bg-primary' : 'bg-border'}`} />}
+          </div>
+        )
+      })}
+    </div>
+  )
 }

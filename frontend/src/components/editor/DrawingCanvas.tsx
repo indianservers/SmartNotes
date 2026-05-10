@@ -177,6 +177,15 @@ export function DrawingCanvas({ content, onChange, readOnly = false }: Props) {
     a.click()
   }
 
+  const cursorDiameter = Math.min(48, Math.max(6, tool === 'eraser' ? size * 4 : size * 2))
+  const cursorColor = tool === 'eraser' ? '#f97316' : color
+  const cursorSvg = encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${cursorDiameter}" height="${cursorDiameter}" viewBox="0 0 ${cursorDiameter} ${cursorDiameter}"><circle cx="${cursorDiameter / 2}" cy="${cursorDiameter / 2}" r="${cursorDiameter / 2 - 1}" fill="none" stroke="${cursorColor}" stroke-width="2"/></svg>`,
+  )
+  const canvasCursor = readOnly
+    ? undefined
+    : `url("data:image/svg+xml,${cursorSvg}") ${cursorDiameter / 2} ${cursorDiameter / 2}, crosshair`
+
   return (
     <div className="flex flex-col gap-2">
       {!readOnly && (
@@ -251,12 +260,12 @@ export function DrawingCanvas({ content, onChange, readOnly = false }: Props) {
       <div ref={containerRef} className="rounded-xl overflow-hidden border border-border/60">
         <canvas
           ref={canvasRef}
-          className={cn('block w-full touch-none', !readOnly && 'cursor-crosshair')}
+          className="block w-full touch-none"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerLeave={onPointerUp}
-          style={{ display: 'block' }}
+          style={{ display: 'block', cursor: canvasCursor }}
         />
       </div>
     </div>
