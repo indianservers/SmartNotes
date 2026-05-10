@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useMemo } from 'react'
 import type { Note, Notebook, Tag, SearchFilters } from '@/types'
 
 interface NotesState {
@@ -77,16 +78,20 @@ export const useNotesStore = create<NotesState>()((set, get) => ({
 
 // Derived selectors
 export function useFilteredNotes() {
-  return useNotesStore((s) => {
-    let notes = s.notes
-    const f = s.searchFilters
+  const notes = useNotesStore((s) => s.notes)
+  const activeNotebook = useNotesStore((s) => s.activeNotebook)
+  const searchFilters = useNotesStore((s) => s.searchFilters)
 
-    if (s.activeNotebook) {
-      notes = notes.filter((n) => n.notebook_id === s.activeNotebook)
+  return useMemo(() => {
+    let filtered = notes
+    const f = searchFilters
+
+    if (activeNotebook) {
+      filtered = filtered.filter((n) => n.notebook_id === activeNotebook)
     }
     if (f.query) {
       const q = f.query.toLowerCase()
-      notes = notes.filter(
+      filtered = filtered.filter(
         (n) =>
           n.title.toLowerCase().includes(q) ||
           n.content.toLowerCase().includes(q) ||
@@ -96,13 +101,13 @@ export function useFilteredNotes() {
           ),
       )
     }
-    if (f.note_type) notes = notes.filter((n) => n.note_type === f.note_type)
-    if (f.is_pinned) notes = notes.filter((n) => n.is_pinned)
-    if (f.is_favorite) notes = notes.filter((n) => n.is_favorite)
-    if (f.has_attachment) notes = notes.filter((n) => n.attachments && n.attachments.length > 0)
+    if (f.note_type) filtered = filtered.filter((n) => n.note_type === f.note_type)
+    if (f.is_pinned) filtered = filtered.filter((n) => n.is_pinned)
+    if (f.is_favorite) filtered = filtered.filter((n) => n.is_favorite)
+    if (f.has_attachment) filtered = filtered.filter((n) => n.attachments && n.attachments.length > 0)
 
-    const pinned = notes.filter((n) => n.is_pinned)
-    const rest = notes.filter((n) => !n.is_pinned)
+    const pinned = filtered.filter((n) => n.is_pinned)
+    const rest = filtered.filter((n) => !n.is_pinned)
     return [...pinned, ...rest]
-  })
+  }, [notes, activeNotebook, searchFilters])
 }
