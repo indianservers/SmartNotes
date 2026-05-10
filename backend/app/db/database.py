@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
 
@@ -34,3 +35,17 @@ async def get_db() -> AsyncSession:  # type: ignore[return]
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        for statement in OPTIONAL_SCHEMA_UPGRADES:
+            try:
+                await conn.execute(text(statement))
+            except Exception:
+                pass
+
+
+OPTIONAL_SCHEMA_UPGRADES = [
+    "ALTER TABLE notes ADD COLUMN category_names TEXT NULL",
+    "ALTER TABLE notes ADD COLUMN group_id VARCHAR(36) NULL",
+    "ALTER TABLE notes ADD COLUMN sort_order INTEGER DEFAULT 0",
+    "ALTER TABLE notebooks ADD COLUMN parent_id VARCHAR(36) NULL",
+    "ALTER TABLE notebooks ADD COLUMN category_names TEXT NULL",
+]

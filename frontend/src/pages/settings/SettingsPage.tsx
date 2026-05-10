@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   User, Lock, LogOut, RefreshCw, Smartphone, Shield,
   ChevronRight, Eye, EyeOff, Key, Cloud, FileJson,
-  Sun, Moon, Monitor, Upload, Globe,
+  Sun, Moon, Monitor, Upload, Globe, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useNotes } from '@/hooks/useNotes'
@@ -29,7 +29,7 @@ export default function SettingsPage() {
   const { user } = useAuthStore()
   const { logout } = useAuth()
   const { syncNow } = useNotes()
-  const { state: syncState, lastSync, pendingCount } = useSyncStore()
+  const { state: syncState, lastSync, lastAttempt, pendingCount, failedCount, conflicts, lastError, clearConflicts } = useSyncStore()
   const [showChangePassword, setShowChangePassword] = useState(false)
   const { notes } = useNotesStore()
   const { theme, setTheme } = useThemeStore()
@@ -68,8 +68,19 @@ export default function SettingsPage() {
               icon={<RefreshCw className={cn('h-4 w-4', syncState === 'syncing' && 'animate-spin')} />}
               label="Sync Now"
               description={lastSync ? `Last synced ${formatDate(lastSync)}` : 'Never synced'}
-              badge={pendingCount > 0 ? `${pendingCount} pending` : undefined}
+              badge={pendingCount > 0 ? `${pendingCount} pending` : failedCount > 0 ? `${failedCount} failed` : undefined}
               onClick={() => syncNow()}
+            />
+            <SyncHealthCard
+              state={syncState}
+              lastSync={lastSync}
+              lastAttempt={lastAttempt}
+              pendingCount={pendingCount}
+              failedCount={failedCount}
+              conflictCount={conflicts.length}
+              lastError={lastError}
+              onSync={() => syncNow()}
+              onClearConflicts={clearConflicts}
             />
             <SettingsRow
               icon={<Smartphone className="h-4 w-4" />}
@@ -274,6 +285,78 @@ function SettingsRow({
       )}
       {onClick && <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground/40" />}
     </button>
+  )
+}
+
+function SyncHealthCard({
+  state,
+  lastSync,
+  lastAttempt,
+  pendingCount,
+  failedCount,
+  conflictCount,
+  lastError,
+  onSync,
+  onClearConflicts,
+}: {
+  state: string
+  lastSync: string | null
+  lastAttempt: string | null
+  pendingCount: number
+  failedCount: number
+  conflictCount: number
+  lastError: string | null
+  onSync: () => void
+  onClearConflicts: () => void
+}) {
+  const healthy = state !== 'error' && pendingCount === 0 && failedCount === 0 && conflictCount === 0
+  return (
+    <div className="px-4 py-3">
+      <div className={cn(
+        'rounded-xl border p-3',
+        healthy ? 'border-green-800/30 bg-green-950/10' : 'border-amber-800/40 bg-amber-950/10',
+      )}>
+        <div className="flex items-start gap-3">
+          {healthy ? (
+            <CheckCircle2 className="mt-0.5 h-4 w-4 text-green-400" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-400" />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">{healthy ? 'Sync healthy' : 'Sync needs attention'}</p>
+            <p className="text-xs text-muted-foreground">
+              {lastSync ? `Last success ${formatDate(lastSync)}` : 'No successful sync yet'}
+              {lastAttempt ? ` · Last attempt ${formatDate(lastAttempt)}` : ''}
+            </p>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-lg bg-surface-2 px-2 py-1.5">
+                <p className="font-semibold">{pendingCount}</p>
+                <p className="text-muted-foreground">Pending</p>
+              </div>
+              <div className="rounded-lg bg-surface-2 px-2 py-1.5">
+                <p className="font-semibold">{failedCount}</p>
+                <p className="text-muted-foreground">Failed</p>
+              </div>
+              <div className="rounded-lg bg-surface-2 px-2 py-1.5">
+                <p className="font-semibold">{conflictCount}</p>
+                <p className="text-muted-foreground">Conflicts</p>
+              </div>
+            </div>
+            {lastError && <p className="mt-2 text-xs text-red-400">{lastError}</p>}
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" variant="outline" onClick={onSync}>
+                <RefreshCw className="h-3.5 w-3.5" /> Retry Sync
+              </Button>
+              {conflictCount > 0 && (
+                <Button size="sm" variant="ghost" onClick={onClearConflicts}>
+                  Clear Conflicts
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

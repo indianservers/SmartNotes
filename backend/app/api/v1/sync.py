@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 import uuid
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
@@ -24,6 +25,28 @@ def _encode_token(user_id: str) -> str:
 def _parse_dt(value: Optional[str]) -> Optional[datetime]:
     if not value:
         return None
+
+
+def _json_text(value) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value)
+    except TypeError:
+        return None
+
+
+def _json_value(value):
+    if not value:
+        return []
+    if isinstance(value, (list, dict)):
+        return value
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return []
     if isinstance(value, datetime):
         return value
     try:
@@ -94,6 +117,9 @@ async def _sync_note(db: AsyncSession, user_id: str, client_id: str, operation: 
             content_hash=payload.get("content_hash"),
             color=payload.get("color"),
             source_url=payload.get("source_url"),
+            category_names=_json_text(payload.get("category_names")),
+            group_id=payload.get("group_id"),
+            sort_order=payload.get("sort_order", 0),
             reminder_at=_parse_dt(payload.get("reminder_at")),
             due_at=_parse_dt(payload.get("due_at")),
             is_pinned=payload.get("is_pinned", False),
@@ -113,6 +139,9 @@ async def _sync_note(db: AsyncSession, user_id: str, client_id: str, operation: 
         existing.content_hash = payload.get("content_hash", existing.content_hash)
         existing.color = payload.get("color", existing.color)
         existing.source_url = payload.get("source_url", existing.source_url)
+        existing.category_names = _json_text(payload.get("category_names")) if "category_names" in payload else existing.category_names
+        existing.group_id = payload.get("group_id", existing.group_id)
+        existing.sort_order = payload.get("sort_order", existing.sort_order)
         existing.reminder_at = _parse_dt(payload.get("reminder_at")) or existing.reminder_at
         existing.due_at = _parse_dt(payload.get("due_at")) or existing.due_at
         existing.is_pinned = payload.get("is_pinned", existing.is_pinned)
@@ -139,9 +168,12 @@ async def _sync_notebook(db: AsyncSession, user_id: str, client_id: str, operati
         nb = Notebook(
             client_id=client_id,
             user_id=user_id,
+            parent_id=payload.get("parent_id"),
             encrypted_title=payload.get("encrypted_title", ""),
+            category_names=_json_text(payload.get("category_names")),
             color=payload.get("color"),
             icon=payload.get("icon"),
+            sort_order=payload.get("sort_order", 0),
             sync_version=1,
         )
         db.add(nb)
@@ -150,7 +182,11 @@ async def _sync_notebook(db: AsyncSession, user_id: str, client_id: str, operati
 
     if operation == "update" and existing:
         existing.encrypted_title = payload.get("encrypted_title", existing.encrypted_title)
+        existing.parent_id = payload.get("parent_id", existing.parent_id)
+        existing.category_names = _json_text(payload.get("category_names")) if "category_names" in payload else existing.category_names
         existing.color = payload.get("color", existing.color)
+        existing.icon = payload.get("icon", existing.icon)
+        existing.sort_order = payload.get("sort_order", existing.sort_order)
         existing.sync_version += 1
         return existing.id
 
@@ -279,6 +315,9 @@ async def pull_sync(
             "content_hash": n.content_hash,
             "color": n.color,
             "source_url": n.source_url,
+            "category_names": _json_value(n.category_names),
+            "group_id": n.group_id,
+            "sort_order": n.sort_order,
             "reminder_at": n.reminder_at.isoformat() if n.reminder_at else None,
             "due_at": n.due_at.isoformat() if n.due_at else None,
             "is_pinned": n.is_pinned,
@@ -293,8 +332,12 @@ async def pull_sync(
         return {
             "id": nb.id,
             "client_id": nb.client_id,
+            "parent_id": nb.parent_id,
             "encrypted_title": nb.encrypted_title,
+            "category_names": _json_value(nb.category_names),
             "color": nb.color,
+            "icon": nb.icon,
+            "sort_order": nb.sort_order,
             "is_deleted": nb.is_deleted,
             "sync_version": nb.sync_version,
             "updated_at": nb.updated_at.isoformat() if nb.updated_at else None,
@@ -379,6 +422,9 @@ async def resolve_conflict(
             content_hash=payload.get("content_hash", note.content_hash),
             color=payload.get("color", note.color),
             source_url=payload.get("source_url", note.source_url),
+            category_names=_json_text(payload.get("category_names")) if "category_names" in payload else note.category_names,
+            group_id=payload.get("group_id", note.group_id),
+            sort_order=payload.get("sort_order", note.sort_order),
             sync_version=1,
         )
         db.add(clone)
@@ -395,6 +441,9 @@ async def _apply_note_payload(note: Note, payload: dict) -> None:
     note.content_hash = payload.get("content_hash", note.content_hash)
     note.color = payload.get("color", note.color)
     note.source_url = payload.get("source_url", note.source_url)
+    note.category_names = _json_text(payload.get("category_names")) if "category_names" in payload else note.category_names
+    note.group_id = payload.get("group_id", note.group_id)
+    note.sort_order = payload.get("sort_order", note.sort_order)
     note.reminder_at = _parse_dt(payload.get("reminder_at")) or note.reminder_at
     note.due_at = _parse_dt(payload.get("due_at")) or note.due_at
     note.is_pinned = payload.get("is_pinned", note.is_pinned)

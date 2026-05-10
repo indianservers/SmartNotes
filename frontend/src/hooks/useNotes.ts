@@ -39,7 +39,16 @@ export function useNotes() {
     removeNotebook,
     addTag,
   } = useNotesStore()
-  const { setState: setSyncState, setPendingCount } = useSyncStore()
+  const {
+    setState: setSyncState,
+    setPendingCount,
+    setFailedCount,
+    setLastAttempt,
+    setLastSync,
+    setLastError,
+    setSyncToken,
+    setConflicts,
+  } = useSyncStore()
 
   const refreshAll = useCallback(async () => {
     setLoading(true)
@@ -133,12 +142,20 @@ export function useNotes() {
 
   const syncNow = useCallback(async () => {
     if (!user) return
+    if (!navigator.onLine) {
+      setSyncState('offline')
+      return
+    }
+    const attemptAt = new Date().toISOString()
+    setLastAttempt(attemptAt)
     setSyncState('syncing')
     try {
       const queue = await getPendingSyncQueue(user.id)
-      setPendingCount(queue.length)
+      setPendingCount(queue.filter((item) => item.status === 'pending' || item.status === 'processing').length)
+      setFailedCount(queue.filter((item) => item.status === 'failed').length)
 
       for (const item of queue) {
+        if (item.status === 'failed') continue
         try {
           await syncApi.push({
             entity_type: item.entity_type,
@@ -152,24 +169,31 @@ export function useNotes() {
             ...item,
             attempt_count: item.attempt_count + 1,
             last_error: String(e),
-            status: item.attempt_count >= 5 ? 'failed' : 'pending',
+            status: item.attempt_count + 1 >= 5 ? 'failed' : 'pending',
             updated_at: new Date().toISOString(),
           })
         }
       }
 
       const remaining = await getPendingSyncQueue(user.id)
-      setPendingCount(remaining.length)
+      setPendingCount(remaining.filter((item) => item.status === 'pending' || item.status === 'processing').length)
+      setFailedCount(remaining.filter((item) => item.status === 'failed').length)
       const lastToken = localStorage.getItem('last_sync_token') ?? undefined
       const pulled = await syncApi.pull(lastToken)
       await applyPulledSync(pulled.data)
-      if (pulled.data?.sync_token) localStorage.setItem('last_sync_token', pulled.data.sync_token)
+      setConflicts(pulled.data?.conflicts ?? [])
+      if (pulled.data?.sync_token) {
+        localStorage.setItem('last_sync_token', pulled.data.sync_token)
+        setSyncToken(pulled.data.sync_token)
+      }
       await refreshAll()
+      setLastSync(new Date().toISOString())
       setSyncState('idle')
-    } catch {
+    } catch (e) {
+      setLastError(e instanceof Error ? e.message : 'Sync failed')
       setSyncState('error')
     }
-  }, [user, setSyncState, setPendingCount])
+  }, [user, setSyncState, setPendingCount, setFailedCount, setLastAttempt, setLastSync, setLastError, setSyncToken, setConflicts, refreshAll])
 
   // ── Notebooks ─────────────────────────────────────────────────────────────
 
