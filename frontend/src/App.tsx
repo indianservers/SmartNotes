@@ -4,7 +4,7 @@ import { Component, useEffect, type ReactNode } from 'react'
 
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuthStore } from '@/stores/authStore'
-import { clearSessionKey } from '@/db/vault'
+import { clearSessionKey, isVaultOpen } from '@/db/vault'
 import { initNotifications } from '@/lib/notifications'
 import { initTheme } from '@/stores/themeStore'
 
@@ -41,6 +41,13 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
     return { error }
   }
 
+  componentDidCatch(error: Error) {
+    if (error.message.includes('Vault is locked')) {
+      window.dispatchEvent(new Event('auth:logout'))
+      window.location.replace('/login')
+    }
+  }
+
   render() {
     if (!this.state.error) return this.props.children
 
@@ -65,8 +72,17 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
-  if (!isAuthenticated) return <Navigate to="/login" replace />
+  const { isAuthenticated, clearAuth } = useAuthStore()
+  const vaultOpen = isVaultOpen()
+
+  if (!isAuthenticated || !vaultOpen) {
+    if (isAuthenticated && !vaultOpen) {
+      clearSessionKey()
+      clearAuth()
+    }
+    return <Navigate to="/login" replace />
+  }
+
   return <>{children}</>
 }
 

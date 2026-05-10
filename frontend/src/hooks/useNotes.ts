@@ -53,7 +53,13 @@ export function useNotes() {
       setNotebooks(notebooks)
       setTags(tags)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load notes')
+      const message = e instanceof Error ? e.message : 'Failed to load notes'
+      if (message.includes('Vault is locked')) {
+        window.dispatchEvent(new Event('auth:logout'))
+        window.location.replace('/login')
+        return
+      }
+      toast.error(message)
     } finally {
       setLoading(false)
     }

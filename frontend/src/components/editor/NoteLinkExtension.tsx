@@ -1,6 +1,7 @@
 import { Extension, type Editor } from '@tiptap/core'
 import Suggestion, { type SuggestionProps, type SuggestionKeyDownProps } from '@tiptap/suggestion'
 import { ReactRenderer } from '@tiptap/react'
+import { PluginKey } from '@tiptap/pm/state'
 import tippy, { type Instance } from 'tippy.js'
 import { getAllNotes } from '@/db/vault'
 import { useAuthStore } from '@/stores/authStore'
@@ -16,6 +17,7 @@ const NoteLinkExtension = Extension.create({
     return {
       suggestion: {
         char: '[[',
+        pluginKey: new PluginKey('noteLinkSuggestion'),
         allowSpaces: true,
         startOfLine: false,
         command: ({ editor, range, props }: { editor: Editor; range: { from: number; to: number }; props: NoteLink }) => {

@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core'
 import Suggestion, { type SuggestionProps, type SuggestionKeyDownProps } from '@tiptap/suggestion'
 import { ReactRenderer } from '@tiptap/react'
+import { PluginKey } from '@tiptap/pm/state'
 import tippy, { type Instance } from 'tippy.js'
 import 'tippy.js/dist/tippy.css'
 import type { Editor } from '@tiptap/core'
@@ -37,7 +38,16 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 const SlashCommandsExtension = Extension.create({
   name: 'slashCommands',
   addOptions() {
-    return { suggestion: { char: '/', command: ({ editor, range, props }: { editor: Editor; range: { from: number; to: number }; props: SlashCommand }) => { props.command(editor) } } }
+    return {
+      suggestion: {
+        char: '/',
+        pluginKey: new PluginKey('slashCommandsSuggestion'),
+        command: ({ editor, range, props }: { editor: Editor; range: { from: number; to: number }; props: SlashCommand }) => {
+          editor.chain().focus().deleteRange(range).run()
+          props.command(editor)
+        },
+      },
+    }
   },
   addProseMirrorPlugins() {
     return [
