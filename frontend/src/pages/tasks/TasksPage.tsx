@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import {
   Plus, CheckCircle2, Circle, Clock, AlertTriangle,
   Calendar, Flag, MoreVertical, Trash2, ArrowUpDown,
-  ListTodo, Filter, ChevronDown,
+  ListTodo, Filter, ChevronDown, ChevronLeft, ChevronRight as ChevronRightIcon,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useTasksStore } from '@/stores/tasksStore'
@@ -39,6 +39,7 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
 
 type SortKey = 'due_at' | 'priority' | 'created_at' | 'title'
 type FilterView = 'all' | 'today' | 'upcoming' | 'overdue' | 'done'
+type PageView = 'list' | 'calendar'
 
 export default function TasksPage() {
   const { user } = useAuthStore()
@@ -47,6 +48,7 @@ export default function TasksPage() {
   const [filterView, setFilterView] = useState<FilterView>('all')
   const [sortKey, setSortKey] = useState<SortKey>('due_at')
   const [loading, setLoading] = useState(true)
+  const [pageView, setPageView] = useState<PageView>('list')
 
   useEffect(() => {
     if (!user) return
@@ -125,6 +127,23 @@ export default function TasksPage() {
         <div className="mx-auto flex max-w-screen-sm items-center justify-between">
           <h1 className="text-lg font-bold">Tasks</h1>
           <div className="flex items-center gap-2">
+            {/* List / Calendar toggle */}
+            <div className="flex rounded-lg border border-border/60 bg-surface-2 overflow-hidden">
+              <button
+                onClick={() => setPageView('list')}
+                className={cn('flex h-8 w-8 items-center justify-center transition-colors', pageView === 'list' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground')}
+                title="List view"
+              >
+                <ListTodo className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setPageView('calendar')}
+                className={cn('flex h-8 w-8 items-center justify-center transition-colors', pageView === 'calendar' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground')}
+                title="Calendar view"
+              >
+                <Calendar className="h-4 w-4" />
+              </button>
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon-sm">
@@ -148,65 +167,71 @@ export default function TasksPage() {
       </header>
 
       <div className="mx-auto max-w-screen-sm px-4 py-4 space-y-4">
-        {/* Filter tabs */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          {views.map(({ key, label, count }) => (
-            <button
-              key={key}
-              onClick={() => setFilterView(key)}
-              className={cn(
-                'flex flex-shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors',
-                filterView === key
-                  ? key === 'overdue' ? 'bg-red-950/40 text-red-400' : 'bg-primary/15 text-primary'
-                  : 'bg-surface-2 text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {label}
-              {count != null && count > 0 && (
-                <span className={cn(
-                  'rounded-full px-1.5 py-0.5 text-[10px] font-bold',
-                  key === 'overdue' ? 'bg-red-900/60 text-red-300' : 'bg-primary/20 text-primary',
-                )}>
-                  {count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+        {pageView === 'list' && (
+          <>
+            {/* Filter tabs */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {views.map(({ key, label, count }) => (
+                <button
+                  key={key}
+                  onClick={() => setFilterView(key)}
+                  className={cn(
+                    'flex flex-shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors',
+                    filterView === key
+                      ? key === 'overdue' ? 'bg-red-950/40 text-red-400' : 'bg-primary/15 text-primary'
+                      : 'bg-surface-2 text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {label}
+                  {count != null && count > 0 && (
+                    <span className={cn(
+                      'rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                      key === 'overdue' ? 'bg-red-900/60 text-red-300' : 'bg-primary/20 text-primary',
+                    )}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-2">
-          <StatCard label="Today" value={counts.today} icon={<Calendar className="h-4 w-4" />} color="text-blue-400" />
-          <StatCard label="Overdue" value={counts.overdue} icon={<AlertTriangle className="h-4 w-4" />} color="text-red-400" />
-          <StatCard label="Upcoming" value={counts.upcoming} icon={<Clock className="h-4 w-4" />} color="text-amber-400" />
-        </div>
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-2">
+              <StatCard label="Today" value={counts.today} icon={<Calendar className="h-4 w-4" />} color="text-blue-400" />
+              <StatCard label="Overdue" value={counts.overdue} icon={<AlertTriangle className="h-4 w-4" />} color="text-red-400" />
+              <StatCard label="Upcoming" value={counts.upcoming} icon={<Clock className="h-4 w-4" />} color="text-amber-400" />
+            </div>
 
-        {/* Task list */}
-        {loading ? (
-          <div className="flex justify-center py-10">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <ListTodo className="mb-3 h-10 w-10 text-muted-foreground/30" />
-            <p className="font-medium text-foreground/70">No tasks here</p>
-            <p className="text-sm text-muted-foreground">
-              {filterView === 'all' ? 'Create your first task' : `No ${filterView} tasks`}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {filtered.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                onToggle={() => handleToggle(task)}
-                onDelete={() => handleDelete(task.id)}
-                onUpdate={(u) => updateTask(task.id, u).then(updateTaskInStore)}
-              />
-            ))}
-          </div>
+            {/* Task list */}
+            {loading ? (
+              <div className="flex justify-center py-10">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <ListTodo className="mb-3 h-10 w-10 text-muted-foreground/30" />
+                <p className="font-medium text-foreground/70">No tasks here</p>
+                <p className="text-sm text-muted-foreground">
+                  {filterView === 'all' ? 'Create your first task' : `No ${filterView} tasks`}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {filtered.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onToggle={() => handleToggle(task)}
+                    onDelete={() => handleDelete(task.id)}
+                    onUpdate={(u) => updateTask(task.id, u).then(updateTaskInStore)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
+
+        {pageView === 'calendar' && <TaskCalendar tasks={tasks} />}
       </div>
 
       <CreateTaskDialog
@@ -433,4 +458,119 @@ function scheduleReminderNotification(task: Task) {
       }, ms)
     }
   })
+}
+
+// ── Calendar View ─────────────────────────────────────────────────────────────
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function TaskCalendar({ tasks }: { tasks: Task[] }) {
+  const today = new Date()
+  const [year, setYear] = useState(today.getFullYear())
+  const [month, setMonth] = useState(today.getMonth())
+
+  const firstDay = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const monthLabel = new Date(year, month, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+
+  const tasksByDay = useMemo(() => {
+    const map: Record<string, Task[]> = {}
+    tasks.forEach((t) => {
+      if (!t.due_at) return
+      const d = t.due_at.slice(0, 10)
+      const [ty, tm] = d.split('-').map(Number)
+      if (ty === year && tm - 1 === month) {
+        if (!map[d]) map[d] = []
+        map[d].push(t)
+      }
+    })
+    return map
+  }, [tasks, year, month])
+
+  function prevMonth() {
+    if (month === 0) { setYear((y) => y - 1); setMonth(11) }
+    else setMonth((m) => m - 1)
+  }
+  function nextMonth() {
+    if (month === 11) { setYear((y) => y + 1); setMonth(0) }
+    else setMonth((m) => m + 1)
+  }
+
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ]
+  // Pad to full grid
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  return (
+    <div>
+      {/* Month nav */}
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={prevMonth} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-surface-2 transition-colors">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <p className="text-sm font-semibold">{monthLabel}</p>
+        <button onClick={nextMonth} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-surface-2 transition-colors">
+          <ChevronRightIcon className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Day headers */}
+      <div className="grid grid-cols-7 mb-1">
+        {DAY_NAMES.map((d) => (
+          <p key={d} className="text-center text-[10px] font-medium text-muted-foreground py-1">{d}</p>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((day, idx) => {
+          if (!day) return <div key={`empty-${idx}`} />
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          const dayTasks = tasksByDay[dateStr] ?? []
+          const isToday = dateStr === today.toISOString().slice(0, 10)
+          const hasOverdue = dayTasks.some((t) => t.status === 'open' && dateStr < today.toISOString().slice(0, 10))
+
+          return (
+            <div
+              key={dateStr}
+              className={cn(
+                'min-h-[56px] rounded-lg p-1 border transition-colors',
+                isToday ? 'border-primary/60 bg-primary/8' : 'border-transparent hover:border-border/60 hover:bg-surface-2',
+              )}
+            >
+              <p className={cn(
+                'text-xs font-medium text-right mb-0.5',
+                isToday ? 'text-primary' : 'text-muted-foreground',
+              )}>
+                {day}
+              </p>
+              <div className="space-y-0.5">
+                {dayTasks.slice(0, 3).map((t) => (
+                  <p
+                    key={t.id}
+                    className={cn(
+                      'truncate rounded px-1 text-[10px] font-medium leading-tight py-0.5',
+                      t.status === 'done'
+                        ? 'bg-surface-3 text-muted-foreground line-through'
+                        : hasOverdue
+                          ? 'bg-red-950/40 text-red-300'
+                          : 'bg-primary/15 text-primary',
+                    )}
+                    title={t.title}
+                  >
+                    {t.title}
+                  </p>
+                ))}
+                {dayTasks.length > 3 && (
+                  <p className="text-[9px] text-muted-foreground text-right">+{dayTasks.length - 3} more</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }

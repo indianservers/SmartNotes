@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.database import create_tables
 from app.api.v1.auth import router as auth_router
 from app.api.v1.sync import router as sync_router
+from app.api.v1.tasks import router as tasks_router
 
 
 @asynccontextmanager
@@ -33,6 +34,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(sync_router, prefix="/api")
+app.include_router(tasks_router, prefix="/api/v1")
 
 
 @app.get("/api/health")

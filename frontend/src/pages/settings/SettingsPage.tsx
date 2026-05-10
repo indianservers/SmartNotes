@@ -1,15 +1,16 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User, Lock, LogOut, RefreshCw, Smartphone, Shield,
-  ChevronRight, Download, Trash2, Bell, Eye, EyeOff,
-  Key, Cloud, FileJson,
+  ChevronRight, Eye, EyeOff, Key, Cloud, FileJson,
+  Sun, Moon, Monitor, Upload,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useNotes } from '@/hooks/useNotes'
 import { useAuthStore } from '@/stores/authStore'
 import { useNotesStore } from '@/stores/notesStore'
 import { useSyncStore } from '@/stores/syncStore'
+import { useThemeStore, type Theme } from '@/stores/themeStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn, getInitials, formatDate } from '@/lib/utils'
@@ -17,6 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { authApi } from '@/services/api'
 import { toast } from 'sonner'
 import { exportAsJSON } from '@/lib/exportNote'
+import { importFromJSON, importFromMarkdown } from '@/lib/importNote'
+import { useNotes as useNotesHook } from '@/hooks/useNotes'
 
 export default function SettingsPage() {
   const navigate = useNavigate()
@@ -26,6 +29,9 @@ export default function SettingsPage() {
   const { state: syncState, lastSync, pendingCount } = useSyncStore()
   const [showChangePassword, setShowChangePassword] = useState(false)
   const { notes } = useNotesStore()
+  const { theme, setTheme } = useThemeStore()
+  const { createNote } = useNotesHook()
+  const importRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="min-h-screen bg-background">
@@ -97,10 +103,41 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* Appearance */}
+        <section className="rounded-2xl border border-border/60 bg-surface-1 overflow-hidden">
+          <div className="px-4 py-3 border-b border-border/40">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Appearance</h2>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-xs text-muted-foreground mb-2">Theme</p>
+            <div className="flex gap-2">
+              {([
+                { value: 'light' as Theme, icon: Sun, label: 'Light' },
+                { value: 'dark' as Theme, icon: Moon, label: 'Dark' },
+                { value: 'system' as Theme, icon: Monitor, label: 'System' },
+              ] as const).map(({ value, icon: Icon, label }) => (
+                <button
+                  key={value}
+                  onClick={() => setTheme(value)}
+                  className={cn(
+                    'flex flex-1 flex-col items-center gap-1.5 rounded-xl border py-3 text-xs font-medium transition-all',
+                    theme === value
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border/60 bg-surface-2 text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* Storage */}
         <section className="rounded-2xl border border-border/60 bg-surface-1 overflow-hidden">
           <div className="px-4 py-3 border-b border-border/40">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Storage</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Data</h2>
           </div>
           <div className="divide-y divide-border/40">
             <SettingsRow
@@ -120,8 +157,44 @@ export default function SettingsPage() {
                 toast.success('Export started')
               }}
             />
+            <SettingsRow
+              icon={<Upload className="h-4 w-4" />}
+              label="Import Notes"
+              description="Import from JSON or Markdown files"
+              onClick={() => importRef.current?.click()}
+            />
           </div>
         </section>
+
+        {/* Hidden import file input */}
+        <input
+          ref={importRef}
+          type="file"
+          multiple
+          accept=".json,.md,.markdown"
+          className="hidden"
+          onChange={async (e) => {
+            const files = Array.from(e.target.files ?? [])
+            if (!files.length) return
+            let imported = 0
+            for (const file of files) {
+              try {
+                const text = await file.text()
+                if (file.name.endsWith('.json')) {
+                  const notes = await importFromJSON(text)
+                  for (const n of notes) await createNote(n)
+                  imported += notes.length
+                } else {
+                  const note = importFromMarkdown(file.name, text)
+                  await createNote(note)
+                  imported++
+                }
+              } catch { toast.error(`Failed to import ${file.name}`) }
+            }
+            if (imported) toast.success(`Imported ${imported} note${imported > 1 ? 's' : ''}`)
+            e.target.value = ''
+          }}
+        />
 
         {/* Danger zone */}
         <section className="rounded-2xl border border-red-800/30 bg-red-950/10 overflow-hidden">

@@ -10,6 +10,7 @@ import { useNotesStore } from '@/stores/notesStore'
 import { RichTextEditor } from '@/components/editor/RichTextEditor'
 import { ChecklistEditor } from '@/components/editor/ChecklistEditor'
 import { PDFViewer } from '@/components/editor/PDFViewer'
+import { DrawingCanvas } from '@/components/editor/DrawingCanvas'
 import { VersionHistory } from '@/components/notes/VersionHistory'
 import { TemplatesGallery } from '@/components/notes/TemplatesGallery'
 import type { NoteTemplate } from '@/components/notes/TemplatesGallery'
@@ -303,6 +304,13 @@ export default function NoteEditorPage() {
           <ChecklistEditor
             content={content}
             onChange={handleChecklistChange}
+          />
+        )}
+
+        {noteType === 'drawing' && (
+          <DrawingCanvas
+            content={content}
+            onChange={(dataUrl) => { setContent(dataUrl); scheduleAutoSave() }}
           />
         )}
 

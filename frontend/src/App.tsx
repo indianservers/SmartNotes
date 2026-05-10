@@ -6,6 +6,10 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuthStore } from '@/stores/authStore'
 import { clearSessionKey } from '@/db/vault'
 import { initNotifications } from '@/lib/notifications'
+import { initTheme } from '@/stores/themeStore'
+
+// Apply persisted theme before first render
+initTheme()
 
 // Auth pages
 import LoginPage from '@/pages/auth/LoginPage'

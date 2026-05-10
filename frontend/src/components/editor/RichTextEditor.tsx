@@ -10,6 +10,10 @@ import CodeBlockLowlight from '@tiptap/extension-code-block'
 import CharacterCount from '@tiptap/extension-character-count'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
 import SlashCommandsExtension from './SlashCommands'
 import NoteLinkExtension from './NoteLinkExtension'
 import {
@@ -17,10 +21,10 @@ import {
   Heading1, Heading2, Heading3, List, ListOrdered, CheckSquare,
   Quote, AlignLeft, AlignCenter, AlignRight, Highlighter,
   Link as LinkIcon, Image as ImageIcon, Undo, Redo, Minus,
+  Table as TableIcon, MoreHorizontal,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 interface Props {
   content: string
@@ -45,7 +49,11 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start writing
       CodeBlockLowlight,
       CharacterCount,
       Link.configure({ openOnClick: false }),
-      Image,
+      Image.configure({ inline: false, allowBase64: true }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Placeholder.configure({ placeholder }),
       SlashCommandsExtension,
       NoteLinkExtension,
@@ -63,13 +71,34 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start writing
     if (current !== content) editor.commands.setContent(content, false)
   }, [content, editor])
 
+  // Handle image paste
+  useEffect(() => {
+    if (!editor || readOnly) return
+    const editorEl = editor.view.dom
+    function onPaste(e: ClipboardEvent) {
+      const files = Array.from(e.clipboardData?.files ?? [])
+      const imageFile = files.find((f) => f.type.startsWith('image/'))
+      if (!imageFile) return
+      e.preventDefault()
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          editor.chain().focus().setImage({ src: reader.result }).run()
+        }
+      }
+      reader.readAsDataURL(imageFile)
+    }
+    editorEl.addEventListener('paste', onPaste as EventListener)
+    return () => editorEl.removeEventListener('paste', onPaste as EventListener)
+  }, [editor, readOnly])
+
   return (
     <div className={cn('flex flex-col', className)}>
       {!readOnly && editor && <EditorToolbar editor={editor} />}
       <EditorContent
         editor={editor}
         className={cn(
-          'prose prose-invert prose-sm max-w-none min-h-[200px] px-1 py-2',
+          'prose prose-sm max-w-none min-h-[200px] px-1 py-2',
           'focus-within:outline-none',
           '[&_.ProseMirror]:outline-none',
           '[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted-foreground/40',
@@ -77,6 +106,7 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start writing
           '[&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left',
           '[&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none',
           '[&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0',
+          '[&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:rounded-xl',
         )}
       />
       {editor && (
@@ -117,6 +147,7 @@ function ToolbarButton({
 
 function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   if (!editor) return null
+  const imgInputRef = useRef<HTMLInputElement>(null)
 
   const setLink = useCallback(() => {
     const url = window.prompt('URL')
@@ -124,8 +155,23 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
     else editor.chain().focus().unsetLink().run()
   }, [editor])
 
+  const insertImage = useCallback((file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        editor.chain().focus().setImage({ src: reader.result }).run()
+      }
+    }
+    reader.readAsDataURL(file)
+  }, [editor])
+
+  const insertTable = useCallback(() => {
+    editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+  }, [editor])
+
   return (
     <div className="flex flex-wrap items-center gap-0.5 rounded-xl border border-border/60 bg-surface-2 p-1.5 mb-2">
+      {/* Undo / Redo */}
       <ToolbarButton onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo">
         <Undo className="h-3.5 w-3.5" />
       </ToolbarButton>
@@ -135,6 +181,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
 
       <div className="mx-1 h-4 w-px bg-border/60" />
 
+      {/* Headings */}
       <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title="Heading 1">
         <Heading1 className="h-3.5 w-3.5" />
       </ToolbarButton>
@@ -147,6 +194,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
 
       <div className="mx-1 h-4 w-px bg-border/60" />
 
+      {/* Text formatting */}
       <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
         <Bold className="h-3.5 w-3.5" />
       </ToolbarButton>
@@ -168,6 +216,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
 
       <div className="mx-1 h-4 w-px bg-border/60" />
 
+      {/* Lists */}
       <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet List">
         <List className="h-3.5 w-3.5" />
       </ToolbarButton>
@@ -180,6 +229,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
 
       <div className="mx-1 h-4 w-px bg-border/60" />
 
+      {/* Alignment */}
       <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title="Align Left">
         <AlignLeft className="h-3.5 w-3.5" />
       </ToolbarButton>
@@ -192,6 +242,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
 
       <div className="mx-1 h-4 w-px bg-border/60" />
 
+      {/* Blocks */}
       <ToolbarButton onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="Quote">
         <Quote className="h-3.5 w-3.5" />
       </ToolbarButton>
@@ -204,6 +255,49 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
       <ToolbarButton onClick={setLink} active={editor.isActive('link')} title="Link">
         <LinkIcon className="h-3.5 w-3.5" />
       </ToolbarButton>
+
+      {/* Table */}
+      <ToolbarButton onClick={insertTable} active={editor.isActive('table')} title="Insert Table">
+        <TableIcon className="h-3.5 w-3.5" />
+      </ToolbarButton>
+
+      {/* Table controls (when inside table) */}
+      {editor.isActive('table') && (
+        <>
+          <div className="mx-1 h-4 w-px bg-border/60" />
+          <ToolbarButton onClick={() => editor.chain().focus().addColumnAfter().run()} title="Add Column">
+            <span className="text-[10px] font-bold">+Col</span>
+          </ToolbarButton>
+          <ToolbarButton onClick={() => editor.chain().focus().addRowAfter().run()} title="Add Row">
+            <span className="text-[10px] font-bold">+Row</span>
+          </ToolbarButton>
+          <ToolbarButton onClick={() => editor.chain().focus().deleteColumn().run()} title="Delete Column">
+            <span className="text-[10px] font-bold text-destructive">-Col</span>
+          </ToolbarButton>
+          <ToolbarButton onClick={() => editor.chain().focus().deleteRow().run()} title="Delete Row">
+            <span className="text-[10px] font-bold text-destructive">-Row</span>
+          </ToolbarButton>
+          <ToolbarButton onClick={() => editor.chain().focus().deleteTable().run()} title="Delete Table">
+            <span className="text-[10px] font-bold text-destructive">Del</span>
+          </ToolbarButton>
+        </>
+      )}
+
+      {/* Image upload */}
+      <ToolbarButton onClick={() => imgInputRef.current?.click()} title="Insert Image">
+        <ImageIcon className="h-3.5 w-3.5" />
+      </ToolbarButton>
+      <input
+        ref={imgInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) insertImage(file)
+          e.target.value = ''
+        }}
+      />
     </div>
   )
 }
