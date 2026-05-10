@@ -59,6 +59,7 @@ export default function NoteEditorPage() {
   const [showTemplates, setShowTemplates] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [keyboardInset, setKeyboardInset] = useState(0)
+  const [headerScrolled, setHeaderScrolled] = useState(false)
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDirty = useRef(false)
@@ -86,6 +87,15 @@ export default function NoteEditorPage() {
     const timer = window.setTimeout(() => titleInputRef.current?.focus(), 80)
     return () => window.clearTimeout(timer)
   }, [isNew])
+
+  useEffect(() => {
+    function onScroll() {
+      setHeaderScrolled(window.scrollY > 10)
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   const save = useCallback(async () => {
     if (!isDirty.current) return
@@ -244,8 +254,13 @@ export default function NoteEditorPage() {
   return (
     <div className={cn('min-h-screen', activeColor?.bg ?? 'bg-background')}>
       {/* Toolbar */}
-      <div className="sticky top-0 z-30 flex items-center gap-2 border-b border-border/40 bg-background/90 backdrop-blur-md px-4 py-2.5">
-        <Button variant="ghost" size="icon-sm" onClick={() => navigate(-1)}>
+      <div
+        className={cn(
+          'sticky top-0 z-30 flex items-center gap-2 border-b border-border/40 bg-background/90 px-4 py-2.5 transition-[backdrop-filter,box-shadow] duration-300',
+          headerScrolled ? 'backdrop-blur-md shadow-sm shadow-black/10' : 'backdrop-blur-0',
+        )}
+      >
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2 h-12 w-12">
           <ArrowLeft className="h-4 w-4" />
         </Button>
 

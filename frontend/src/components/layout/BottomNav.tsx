@@ -13,7 +13,7 @@ const NAV = [
 
 export function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-surface-1/95 backdrop-blur-md safe-area-pb">
+    <nav className="bottom-nav-safe fixed bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-surface-1/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-screen-sm items-center justify-around px-2 py-1">
         {NAV.map(({ to, icon: Icon, label }) => (
           <NavLink
@@ -21,7 +21,7 @@ export function BottomNav() {
             to={to}
             className={({ isActive }) =>
               cn(
-                'flex flex-col items-center gap-0.5 rounded-xl px-3 py-2 text-xs transition-colors min-w-0',
+                'flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-3 py-2 text-xs transition-all active:scale-90',
                 isActive
                   ? 'text-primary'
                   : 'text-muted-foreground hover:text-foreground',
@@ -36,7 +36,12 @@ export function BottomNav() {
                     isActive && 'scale-110',
                   )}
                 />
-                <span className="font-medium">{label}</span>
+                <span className={cn('relative font-medium', isActive && 'font-bold')}>
+                  {label}
+                  {isActive && (
+                    <span className="absolute left-1/2 top-full mt-1 h-[3px] w-[3px] -translate-x-1/2 rounded-full bg-primary" />
+                  )}
+                </span>
               </>
             )}
           </NavLink>

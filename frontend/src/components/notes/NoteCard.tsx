@@ -5,7 +5,7 @@ import {
   BookOpen, Bell, Mic, Image, Paperclip, CheckSquare,
   FolderInput, Layers,
 } from 'lucide-react'
-import { cn, formatDate, truncate, stripHtml, getColorClasses } from '@/lib/utils'
+import { cn, formatDate, truncate, stripHtml, NOTE_TYPE_LABELS } from '@/lib/utils'
 import { useNotes } from '@/hooks/useNotes'
 import { useNotesStore } from '@/stores/notesStore'
 import type { Note } from '@/types'
@@ -48,9 +48,15 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const longPressTriggered = useRef(false)
 
-  const { bg, border } = getColorClasses(note.color)
   const preview = truncate(stripHtml(note.content), 120)
   const TypeIcon = TYPE_ICON[note.note_type]
+  const typeLabel = NOTE_TYPE_LABELS[note.note_type] ?? 'Note'
+  const accentStyle = note.color
+    ? {
+        borderLeftColor: note.color,
+        background: `color-mix(in srgb, ${note.color} 7%, var(--color-surface-2))`,
+      }
+    : undefined
 
   function handleOpen() {
     if (longPressTriggered.current || deleteRevealed) {
@@ -129,11 +135,11 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
           className={cn(
             'relative flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-all',
             'active:scale-[0.99] hover:bg-surface-3/40',
-            bg, border,
+            'bg-surface-2 border-border border-l-[3px]',
             isDragTarget && 'ring-2 ring-primary/70',
             deleting && 'opacity-0 scale-95',
           )}
-          style={{ transform: `translateX(${swipeX}px)` }}
+          style={{ transform: `translateX(${swipeX}px)`, ...accentStyle }}
           draggable={draggable}
           onDragStart={onDragStart}
           onDragOver={onDragOver}
@@ -145,9 +151,6 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
           onTouchCancel={handleTouchEnd}
           onClick={handleOpen}
         >
-          {note.color && (
-            <div className="mt-0.5 h-2 w-2 flex-shrink-0 rounded-full" style={{ background: note.color }} />
-          )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="truncate font-medium text-sm text-foreground">{note.title || 'Untitled'}</span>
@@ -155,8 +158,12 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
               {note.is_favorite && <Star className="h-3 w-3 text-amber-400 flex-shrink-0" />}
             </div>
             {preview && <p className="mt-0.5 text-xs text-muted-foreground truncate">{preview}</p>}
-            <span className="font-mono text-[10px] text-muted-foreground/60">{formatDate(note.updated_at)}</span>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="font-mono text-[10px] text-muted-foreground/60">{formatDate(note.updated_at)}</span>
+              <TypeChip Icon={TypeIcon} label={typeLabel} />
+            </div>
           </div>
+          <SyncStatusDot status={note.sync_status} />
           <NoteMenu
             note={note}
             notebooks={notebooks}
@@ -177,13 +184,13 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
   return (
     <div
       className={cn(
-        'group relative flex flex-col rounded-2xl border p-4 cursor-pointer transition-all duration-200',
-        'active:scale-[0.98] hover:shadow-lg hover:shadow-black/20',
-        bg, border,
+        'group relative flex flex-col rounded-2xl border border-l-[3px] p-4 cursor-pointer transition-all duration-200',
+        'bg-surface-2 border-border active:scale-[0.98] hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20',
         note.is_pinned && 'ring-1 ring-primary/30',
         isDragTarget && 'ring-2 ring-primary/70',
         deleting && 'opacity-0 scale-95',
       )}
+      style={accentStyle}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
@@ -247,7 +254,10 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
 
       {/* Footer */}
       <div className="mt-auto flex items-center justify-between pt-2">
-        <span className="font-mono text-[10px] text-muted-foreground/60">{formatDate(note.updated_at)}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="font-mono text-[10px] text-muted-foreground/60">{formatDate(note.updated_at)}</span>
+          <TypeChip Icon={TypeIcon} label={typeLabel} />
+        </div>
         <div className="flex items-center gap-2">
           {note.group_id && (
             <span title="Grouped note">
@@ -260,9 +270,7 @@ export function NoteCard({ note, view = 'grid', draggable, isDragTarget, onDragS
               {note.attachments.length}
             </Badge>
           )}
-          {note.sync_status !== 'synced' && note.sync_status !== 'pending_create' && (
-            <div className="h-1.5 w-1.5 rounded-full bg-amber-400" title="Pending sync" />
-          )}
+          <SyncStatusDot status={note.sync_status} />
         </div>
       </div>
     </div>
@@ -279,6 +287,8 @@ function ChecklistPreview({ content }: { content: string }) {
   if (!items.length) return null
   const done = items.filter((i) => i.checked).length
 
+  const progress = Math.round((done / items.length) * 100)
+
   return (
     <div className="mb-3 space-y-1">
       {items.map((item, i) => (
@@ -287,8 +297,43 @@ function ChecklistPreview({ content }: { content: string }) {
           <span className={cn('truncate transition-all', item.checked && 'line-through text-muted-foreground opacity-60')}>{item.text}</span>
         </div>
       ))}
-      <p className="text-[10px] text-muted-foreground/60">{done}/{items.length} done</p>
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-3" title={`${done}/${items.length} done`}>
+        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+      </div>
     </div>
+  )
+}
+
+function TypeChip({ Icon, label }: { Icon?: React.ElementType; label: string }) {
+  const ChipIcon = Icon ?? BookOpen
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1 rounded-full bg-surface-3/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+      <ChipIcon className="h-3 w-3 flex-shrink-0" />
+      <span className="truncate">{label}</span>
+    </span>
+  )
+}
+
+function SyncStatusDot({ status }: { status: Note['sync_status'] }) {
+  const label =
+    status === 'synced'
+      ? 'Synced'
+      : status === 'conflict'
+        ? 'Conflict'
+        : status === 'error'
+          ? 'Sync error'
+          : 'Pending sync'
+  return (
+    <span
+      className={cn(
+        'h-1.5 w-1.5 flex-shrink-0 rounded-full',
+        status === 'synced' && 'bg-emerald-400/80',
+        (status === 'pending_create' || status === 'pending_update' || status === 'pending_delete') && 'bg-amber-400',
+        (status === 'conflict' || status === 'error') && 'bg-red-400',
+      )}
+      title={label}
+      aria-label={label}
+    />
   )
 }
 

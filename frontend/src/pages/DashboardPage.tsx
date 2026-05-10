@@ -69,6 +69,8 @@ export default function DashboardPage() {
   const [dragTargetId, setDragTargetId] = useState<string | null>(null)
   const [pullDistance, setPullDistance] = useState(0)
   const [pullRefreshing, setPullRefreshing] = useState(false)
+  const [headerScrolled, setHeaderScrolled] = useState(false)
+  const [showFabPulse, setShowFabPulse] = useState(false)
   const pullStartY = useRef<number | null>(null)
   const filteredNotes = useFilteredNotes()
   const categories = Array.from(new Set(filteredNotes.flatMap((note) => note.category_names))).sort((a, b) => a.localeCompare(b))
@@ -76,6 +78,17 @@ export default function DashboardPage() {
   useEffect(() => {
     refreshAll()
   }, [refreshAll])
+
+  useEffect(() => {
+    const seenPulse = localStorage.getItem('smart-notes-fab-pulse-seen') === '1'
+    setShowFabPulse(!seenPulse)
+    function onScroll() {
+      setHeaderScrolled(window.scrollY > 10)
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   // Handle smart view changes
   useEffect(() => {
@@ -96,6 +109,8 @@ export default function DashboardPage() {
   }
 
   function handleNewNote(type: NoteType = 'rich') {
+    localStorage.setItem('smart-notes-fab-pulse-seen', '1')
+    setShowFabPulse(false)
     navigate(`/notes/new?type=${type}`)
   }
 
@@ -204,7 +219,12 @@ export default function DashboardPage() {
         {pullRefreshing ? 'Syncing' : pullDistance >= 72 ? 'Release to sync' : 'Pull to refresh'}
       </div>
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-border/40 bg-background/95 backdrop-blur-md">
+      <header
+        className={cn(
+          'sticky top-0 z-30 border-b border-border/40 bg-background/90 transition-[background-color,backdrop-filter,box-shadow] duration-300',
+          headerScrolled ? 'backdrop-blur-md shadow-sm shadow-black/10' : 'backdrop-blur-0',
+        )}
+      >
         <div className="mx-auto max-w-screen-sm px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -384,9 +404,7 @@ export default function DashboardPage() {
 
         {/* Loading */}
         {isLoading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
+          <DashboardSkeletonCards />
         )}
 
         {/* Empty state */}
@@ -464,6 +482,7 @@ export default function DashboardPage() {
           'fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-2xl',
           'bg-primary text-white shadow-lg shadow-primary/30 transition-transform active:scale-95',
           'hover:bg-primary/90',
+          showFabPulse && 'fab-pulse-ring',
         )}
         title="New Note"
       >
@@ -481,6 +500,27 @@ function densityGrid(density: Density) {
 
 function densityList(density: Density) {
   return density === 'compact' ? 'space-y-1.5' : density === 'expanded' ? 'space-y-3' : 'space-y-2'
+}
+
+function DashboardSkeletonCards() {
+  return (
+    <div className="grid grid-cols-1 gap-3 py-3 sm:grid-cols-2 lg:grid-cols-3">
+      {[0, 1, 2].map((item) => (
+        <div key={item} className="skeleton-shimmer rounded-2xl border border-border/60 bg-surface-2 p-4">
+          <div className="mb-4 h-4 w-2/3 rounded bg-surface-3" />
+          <div className="space-y-2">
+            <div className="h-3 w-full rounded bg-surface-3" />
+            <div className="h-3 w-5/6 rounded bg-surface-3" />
+            <div className="h-3 w-3/5 rounded bg-surface-3" />
+          </div>
+          <div className="mt-5 flex items-center justify-between">
+            <div className="h-3 w-20 rounded bg-surface-3" />
+            <div className="h-2 w-2 rounded-full bg-surface-3" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function SmartCard({ icon: Icon, label, value, onClick }: { icon: React.ElementType; label: string; value: number; onClick: () => void }) {
